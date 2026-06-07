@@ -2091,7 +2091,6 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
         // ── Helpers ──────────────────────────────────────────────────────────────
 
         private static DumpVec3 ToDumpVec(Vector3 v) => new() { X = v.X, Y = v.Y, Z = v.Z };
-        private static DumpVec3 ToDumpVec(ref Vector3 v) => new() { X = v.X, Y = v.Y, Z = v.Z };
 
         // ── DTOs ─────────────────────────────────────────────────────────────────
 

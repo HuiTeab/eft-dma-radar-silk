@@ -146,13 +146,9 @@ namespace eft_dma_radar.Silk.UI
         private static readonly Vector4 ColorMenuBarRight = new(0.55f, 0.60f, 0.65f, 1.0f);
         private static readonly Vector4 ColorStatusBarBg = new(0.10f, 0.10f, 0.12f, 0.92f);
         private static readonly Vector4 ColorHideoutDot = new(1.00f, 0.84f, 0.00f, 1f);
-        private static readonly Vector4 ColorStatusText = new(0.60f, 0.62f, 0.65f, 1f);
-        private static readonly Vector4 ColorStatusSeparator = new(0.50f, 0.52f, 0.55f, 1f);
         private static readonly Vector4 ColorRaidDot = new(0.30f, 0.75f, 0.70f, 1f);
         private static readonly Vector4 ColorSaveNotify = new(0.30f, 0.80f, 0.50f, 1f);
         private static readonly Vector4 ColorEnergyHydrationOk = new(0.55f, 0.72f, 0.55f, 1f);
-        private static readonly Vector4 ColorEnergyHydrationLow = new(0.90f, 0.65f, 0.20f, 1f);
-        private static readonly Vector4 ColorEnergyHydrationCrit = new(0.90f, 0.30f, 0.30f, 1f);
         private static readonly Vector4 ColorDmaStats = new(0.42f, 0.62f, 0.80f, 1.0f);
 
         // Big-chip status bar

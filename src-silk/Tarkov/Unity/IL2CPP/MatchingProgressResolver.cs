@@ -18,7 +18,6 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
         private const string Tag = "[MatchingProgressResolver]";
 
         private static ulong _cachedMatchingProgress;
-        private static ulong _cachedViewObjectClass;
         private static EMatchingStage _cachedStage;
         private static readonly Lock _lock = new();
         private static volatile int _resolvingAsync; // 0 = idle, 1 = running
@@ -116,7 +115,6 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
             lock (_lock)
             {
                 _cachedMatchingProgress = 0;
-                _cachedViewObjectClass = 0;
                 _cachedStage = EMatchingStage.None;
                 _prevStage = EMatchingStage.None;
                 _highWaterStage = EMatchingStage.None;
@@ -345,7 +343,6 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
 
                 lock (_lock)
                 {
-                    _cachedViewObjectClass = viewObjectClass;
                     _cachedMatchingProgress = mpPtr;
                 }
 
@@ -392,7 +389,6 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
                             totalElapsed = _totalSw.Elapsed.TotalSeconds;
                             failures = _consecutiveReadFailures;
                             _cachedMatchingProgress = 0;
-                            _cachedViewObjectClass = 0;
                         }
 
                         Log.WriteLine(

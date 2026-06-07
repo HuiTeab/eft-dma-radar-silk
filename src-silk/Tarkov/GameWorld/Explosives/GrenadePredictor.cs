@@ -21,13 +21,6 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Explosives
         private const float DefaultHighThrowSpeed = 19f;
         private const float DefaultLowThrowSpeed  = 9f;
 
-        private static readonly Dictionary<string, float> EffectiveDistances =
-            new(StringComparer.OrdinalIgnoreCase)
-            {
-                { "F-1", 7f }, { "M67", 8f }, { "RGD-5", 7f }, { "RGN", 5f },
-                { "RGO", 7f }, { "V40", 5f }, { "VOG-17", 6f }, { "VOG-25", 7f }
-            };
-
         private readonly Player.LocalPlayer _localPlayer;
 
         // Cached last-known arc — written on worker thread, read on render thread.

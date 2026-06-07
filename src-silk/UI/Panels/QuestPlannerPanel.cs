@@ -32,7 +32,6 @@ namespace eft_dma_radar.Silk.UI.Panels
         // Colours — use UITheme
         private static ref readonly Vector4 ColGreen   => ref UITheme.Green;
         private static ref readonly Vector4 ColOrange  => ref UITheme.Orange;
-        private static ref readonly Vector4 ColGrey    => ref UITheme.Grey;
         private static ref readonly Vector4 ColCyan    => ref UITheme.Cyan;
         private static ref readonly Vector4 ColYellow  => ref UITheme.Yellow;
         private static ref readonly Vector4 ColDim     => ref UITheme.Dim;

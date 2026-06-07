@@ -289,7 +289,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Loot
         /// heap-address recycling from carrying stale "processed" flags onto a newly
         /// spawned corpse, which would otherwise skip dogtag reads and never resolve a name.
         /// </summary>
-        private void PruneCorpseState(IReadOnlyList<LootCorpse> currentCorpses)
+        private void PruneCorpseState(List<LootCorpse> currentCorpses)
         {
             if (_processedCorpses.Count == 0
                 && _killfeedPushed.Count == 0

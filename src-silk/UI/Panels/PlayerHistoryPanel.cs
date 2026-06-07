@@ -16,8 +16,6 @@ namespace eft_dma_radar.Silk.UI.Panels
     /// </summary>
     internal static class PlayerHistoryPanel
     {
-        private static SilkConfig Config => SilkProgram.Config;
-
         /// <summary>Whether the panel is open.</summary>
         public static bool IsOpen { get; set; }
 
@@ -33,8 +31,6 @@ namespace eft_dma_radar.Silk.UI.Panels
         private static List<PlayerHistoryEntry>? _cachedDisplay;
 
         // Colours — use UITheme
-        private static ref readonly Vector4 ColGreen => ref UITheme.Green;
-        private static ref readonly Vector4 ColRed   => ref UITheme.Red;
         private static ref readonly Vector4 ColGrey  => ref UITheme.Grey;
         private static ref readonly Vector4 ColGold  => ref UITheme.Gold;
 

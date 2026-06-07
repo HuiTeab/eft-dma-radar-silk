@@ -30,7 +30,6 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         // â”€â”€ Top blockers state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Persists across frames so the user can keep a popup open while
         // looking at the table. Cleared when the popup closes.
-        private static int    _blockerAddPopupActorIdx = -1;
         private static string _blockerAddPopupName     = "";
         private static string _blockerCustomPattern    = "";
         private static string _blockerAddStatus        = "";
@@ -310,7 +309,6 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     ImGui.PushID(i);
                     if (ImGui.SmallButton("+SeeThru"))
                     {
-                        _blockerAddPopupActorIdx = agg.ActorIdx;
                         _blockerAddPopupName     = a.Name ?? "";
                         _blockerCustomPattern    = a.Name ?? "";
                         ImGui.OpenPopup("##add_seethru_popup");
@@ -870,7 +868,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                             string nm = string.IsNullOrEmpty(bl.Name)
                                 ? $"({bl.GeometryType})"
                                 : bl.Name;
-                            if (nm.Length > 38) nm = nm.Substring(0, 37) + "â€¦";
+                            if (nm.Length > 38) nm = string.Concat(nm.AsSpan(0, 37), "â€¦");
                             ImGui.TextUnformatted(nm);
                             if (ImGui.IsItemHovered())
                                 ImGui.SetTooltip(

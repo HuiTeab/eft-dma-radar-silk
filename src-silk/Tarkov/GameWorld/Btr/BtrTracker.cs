@@ -553,7 +553,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
             canvas.DrawText(distText, distPt, SKTextAlign.Left, SKPaints.FontRegular11, SKPaints.TextBtr);
         }
 
-        private IReadOnlyList<BtrRouteStop> TryReadRouteStops()
+        private List<BtrRouteStop> TryReadRouteStops()
         {
             try
             {

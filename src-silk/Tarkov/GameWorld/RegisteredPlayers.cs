@@ -61,9 +61,6 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
         // Health status refresh interval per player (seconds) — moderate rate, just a single int read
         private const int HealthRefreshIntervalSec = 3;
 
-        // Local player energy/hydration refresh interval (seconds)
-        private const int EnergyHydrationRefreshIntervalSec = 3;
-
         // ETagStatus flag bits used for health classification
         private const int ETagDying = 8192;
         private const int ETagBadlyInjured = 4096;

@@ -33,7 +33,6 @@ namespace eft_dma_radar.Silk.UI.Panels
         // ── Cached upgrade section data ──────────────────────────────────────
         private static IReadOnlyList<HideoutAreaInfo>? _cachedAreaSource;
         private static List<HideoutAreaInfo>? _cachedSortedAreas;
-        private static int _cachedReady, _cachedUpgradeable, _cachedMaxed;
         private static string _cachedAreaSummary = "";
 
         // ── Cached planner data ──────────────────────────────────────────────
@@ -345,9 +344,6 @@ namespace eft_dma_radar.Silk.UI.Panels
                             ready++;
                     }
                 }
-                _cachedReady = ready;
-                _cachedUpgradeable = upgradeable;
-                _cachedMaxed = maxed;
                 _cachedAreaSummary = $"Areas: {ready} ready  \u00b7  {upgradeable} upgradeable  \u00b7  {maxed} maxed";
 
                 if (_cachedSortedAreas is null)

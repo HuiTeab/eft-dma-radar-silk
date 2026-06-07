@@ -49,7 +49,6 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
         #region Fields
 
         private readonly ulong _base;
-        private readonly CancellationToken _ct;
         private readonly RegisteredPlayers _registeredPlayers;
         private readonly LootManager _lootManager;
         private readonly InteractablesManager _interactablesManager;
@@ -57,9 +56,9 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
         private Quests.QuestManager? _questManager;
         private Profile.WishlistManager? _wishlistManager;
         private CameraManager? _cameraManager;
-        private ExplosivesManager? _explosivesManager;
-        private BtrTracker? _btrTracker;
-        private IReadOnlyList<Switch>? _switches;
+        private readonly ExplosivesManager? _explosivesManager;
+        private readonly BtrTracker? _btrTracker;
+        private readonly IReadOnlyList<Switch>? _switches;
         private int _disposed;
         private WorkerThread? _realtimeWorker;
         private WorkerThread? _registrationWorker;
@@ -373,7 +372,6 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
         {
             _base = gameWorldBase;
             MapID = mapId;
-            _ct = ct;
             IsHideout = mapId.Equals(HideoutMapID, StringComparison.OrdinalIgnoreCase);
 
             _registeredPlayers = new RegisteredPlayers(gameWorldBase, mapId);

@@ -241,43 +241,6 @@ internal static class HotkeyManager
     }
 
     /// <summary>
-    /// Resolves the configured trigger mode for an action, defaulting to
-    /// <see cref="HotkeyMode.Toggle"/> when the action has no stored binding yet.
-    /// </summary>
-    private static HotkeyMode ModeOf(string actionId)
-        => SilkProgram.Config.Hotkeys.TryGetValue(actionId, out var hk) ? hk.Mode : HotkeyMode.Toggle;
-
-    /// <summary>
-    /// Drives a boolean setting from a key event according to the action's configured
-    /// <see cref="HotkeyMode"/>:
-    /// <list type="bullet">
-    ///   <item><see cref="HotkeyMode.Toggle"/> — flips the value on key-down; key-up is ignored.</item>
-    ///   <item><see cref="HotkeyMode.OnKey"/> — hold: the value tracks the key, <see langword="true"/>
-    ///     while held and <see langword="false"/> on release.</item>
-    /// </list>
-    /// Handlers fire on both the down and up edges (the input worker dispatches on every key
-    /// transition), which is what lets OnKey react to release. Returns <see langword="true"/> only
-    /// when the value actually changed, so callers persist / log on a real transition.
-    /// </summary>
-    private static bool ApplyToggle(string actionId, InputManager.KeyInputEventArgs e,
-        Func<bool> get, Action<bool> set)
-    {
-        if (ModeOf(actionId) == HotkeyMode.OnKey)
-        {
-            if (get() == e.IsDown)
-                return false; // already in the desired hold state
-            set(e.IsDown);
-            return true;
-        }
-
-        // Toggle: act on the rising edge only.
-        if (!e.IsDown)
-            return false;
-        set(!get());
-        return true;
-    }
-
-    /// <summary>
     /// Registers all enabled hotkeys from config with <see cref="InputManager"/>.
     /// Safe to call multiple times — re-registers with current config values.
     /// </summary>

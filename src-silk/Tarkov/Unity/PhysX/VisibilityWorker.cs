@@ -405,7 +405,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                         : $"layer=0x{mask:X8}(multi)";
                 string nameDesc = string.IsNullOrEmpty(blocker.Name)
                     ? "(no name)"
-                    : blocker.Name.Length > 36 ? blocker.Name.Substring(0, 35) + "â€¦" : blocker.Name;
+                    : blocker.Name.Length > 36 ? string.Concat(blocker.Name.AsSpan(0, 35), "â€¦") : blocker.Name;
                 blockerDesc =
                     $"bone={boneLabel(firstBlockerBone)} " +
                     $"actor#{firstBlockerIdx} \"{nameDesc}\" " +

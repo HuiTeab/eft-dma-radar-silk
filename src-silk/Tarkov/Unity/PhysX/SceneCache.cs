@@ -1106,7 +1106,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                         if (hitIndex++ % step != 0) continue;
                         if (taken++ >= SampleSize) break;
                         string nm = string.IsNullOrEmpty(a.Name) ? "(no name)"
-                            : a.Name.Length > 48 ? a.Name.Substring(0, 47) + "â€¦" : a.Name;
+                            : a.Name.Length > 48 ? string.Concat(a.Name.AsSpan(0, 47), "â€¦") : a.Name;
                         string why = VisibilityClassifier.Explain(mapId, a.ShapeLayerMask, a.Name);
                         sb.AppendLine($"  \"{nm}\" type={a.GeometryType} layer={a.UnityLayer} â†’ {why}");
                     }
@@ -2267,7 +2267,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static string Truncate(string s, int max)
         {
             if (string.IsNullOrEmpty(s) || s.Length <= max) return s ?? string.Empty;
-            return s.Substring(0, max - 1) + "â€¦";
+            return string.Concat(s.AsSpan(0, max - 1), "â€¦");
         }
 
         /// <summary>
@@ -2508,7 +2508,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// layers (railings, foliage, signposts), eliminating most remaining
         /// false-positive visibility blocks.
         /// </summary>
-        private static void DumpShapeComparison(IReadOnlyList<ulong> shapePtrs)
+        private static void DumpShapeComparison(List<ulong> shapePtrs)
         {
             const int DumpSize = 0x100; // 256 bytes per shape
             int n = shapePtrs.Count;

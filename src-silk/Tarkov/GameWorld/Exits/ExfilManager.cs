@@ -17,7 +17,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Exits
         private readonly string _mapId;
         private readonly bool _isPmc;
         private volatile IReadOnlyList<Exfil> _exfils = [];
-        private volatile IReadOnlyList<TransitPoint> _transits = [];
+        private volatile List<TransitPoint> _transits = [];
         private int _initAttempts;
         private const int MaxInitAttempts = 20;
         private DateTime _lastRefresh;

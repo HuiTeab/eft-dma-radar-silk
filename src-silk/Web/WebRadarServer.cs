@@ -31,7 +31,7 @@ namespace eft_dma_radar.Silk.Web
     /// </summary>
     internal static class WebRadarServer
     {
-        private static WebRadarUpdate _latest = new();
+        private static readonly WebRadarUpdate _latest = new();
         // Pre-serialized radar payload, published by the worker once per tick.
         // Requests serve these bytes directly, avoiding per-request JsonSerializer cost
         // and removing races between the worker mutating _latest and the request thread

@@ -241,7 +241,6 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private const uint ColorPlayerLocal      = 0xFF20FF20u;  // green
         private const uint ColorPlayerEnemy      = 0xFF4040FFu;  // red
         private const uint ColorPlayerEnemyDim   = 0x804040FFu;  // half-alpha red
-        private const uint ColorPlayerEnemyAI    = 0xFFB0B0B0u;  // grey (AI / placeholder)
 
         // Layer display filter grid button colours (matches ClassifierRulesWidget scheme).
         private const uint ColLayerActive        = 0xFF2060E0u;  // orange/blue = layer shown

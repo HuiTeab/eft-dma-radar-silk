@@ -126,7 +126,7 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
             return list;
         }
 
-        private static HashSet<string> BuildActiveQuestIdSet(IReadOnlyList<QuestData> quests)
+        private static HashSet<string> BuildActiveQuestIdSet(List<QuestData> quests)
         {
             var set = new HashSet<string>(quests.Count, StringComparer.Ordinal);
             for (int i = 0; i < quests.Count; i++) set.Add(quests[i].Id);
@@ -134,7 +134,7 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
         }
 
         private static List<(TaskElement Task, TaskElement.ObjectiveElement Objective)> GetCompletableObjectives(
-            IReadOnlyList<QuestData> quests,
+            List<QuestData> quests,
             FrozenDictionary<string, TaskElement> taskData)
         {
             var result = new List<(TaskElement, TaskElement.ObjectiveElement)>(quests.Count * 2);
@@ -425,7 +425,7 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
         private static List<QuestPlan> BuildQuestsForMap(
             string mapId,
             List<(TaskElement Task, TaskElement.ObjectiveElement Objective)> completable,
-            IReadOnlyList<QuestData> quests)
+            List<QuestData> quests)
         {
             var completedByQuest = new Dictionary<string, HashSet<string>>(quests.Count, StringComparer.Ordinal);
             var countersByQuest = new Dictionary<string, IReadOnlyDictionary<string, int>>(quests.Count, StringComparer.Ordinal);
@@ -490,7 +490,7 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
             return result;
         }
 
-        private static Dictionary<string, string> BuildFindItemLookup(IReadOnlyList<TaskElement.ObjectiveElement> allObjs)
+        private static Dictionary<string, string> BuildFindItemLookup(List<TaskElement.ObjectiveElement> allObjs)
         {
             var map = new Dictionary<string, string>(StringComparer.Ordinal);
             for (int i = 0; i < allObjs.Count; i++)
@@ -647,7 +647,7 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
 
         private static List<QuestPlan> BuildAllMapsQuests(
             List<(TaskElement Task, TaskElement.ObjectiveElement Objective)> completable,
-            IReadOnlyList<QuestData> quests)
+            List<QuestData> quests)
         {
             var completedByQuest = new Dictionary<string, HashSet<string>>(quests.Count, StringComparer.Ordinal);
             var countersByQuest = new Dictionary<string, IReadOnlyDictionary<string, int>>(quests.Count, StringComparer.Ordinal);
@@ -731,7 +731,7 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
         }
 
         private static List<FirItemInfo> BuildFirItems(
-            IReadOnlyList<QuestData> quests,
+            List<QuestData> quests,
             FrozenDictionary<string, TaskElement> taskData)
         {
             var result = new List<FirItemInfo>();
@@ -774,7 +774,7 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
         }
 
         private static List<HandOverItemInfo> BuildHandOverItems(
-            IReadOnlyList<QuestData> quests,
+            List<QuestData> quests,
             FrozenDictionary<string, TaskElement> taskData)
         {
             var result = new List<HandOverItemInfo>();
