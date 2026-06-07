@@ -102,6 +102,28 @@ namespace eft_dma_radar.Silk.Config
 
         [JsonPropertyName("thermalVision")]
         public bool ThermalVision { get; set; } = false;
+
+        [JsonPropertyName("noVisor")]
+        public bool NoVisor { get; set; } = false;
+
+        [JsonPropertyName("ballisticAdjustment")]
+        public bool BallisticAdjustment { get; set; } = false;
+    }
+
+    /// <summary>Target bone the aim solver holds over.</summary>
+    public enum BallisticsAimBone
+    {
+        Thorax = 0,
+        Head = 1
+    }
+
+    /// <summary>How the aim solver chooses which hostile to solve for.</summary>
+    public enum BallisticsTargetMode
+    {
+        /// <summary>The hostile nearest the crosshair (smallest angle to the aim ray).</summary>
+        NearestToCrosshair = 0,
+        /// <summary>The hostile nearest the muzzle by distance.</summary>
+        Nearest = 1
     }
 
     /// <summary>
@@ -149,6 +171,68 @@ namespace eft_dma_radar.Silk.Config
         /// <summary>Max predicted-trajectory distance from muzzle (meters).</summary>
         [JsonPropertyName("predictedMaxDistance")]
         public float PredictedMaxDistance { get; set; } = 400f;
+
+        // ── Aim solver (holdover + lead) ──────────────────────────────────────
+
+        /// <summary>Start the predicted arc at the real weapon fireport (bore) instead of the eye/camera.</summary>
+        [JsonPropertyName("useFireportMuzzle")]
+        public bool UseFireportMuzzle { get; set; } = true;
+
+        /// <summary>Draw the "aim here" indicator (drop + lead compensated) for the selected target.</summary>
+        [JsonPropertyName("drawAimPoint")]
+        public bool DrawAimPoint { get; set; } = false;
+
+        /// <summary>Target bone the aim solver holds over (Thorax / Head).</summary>
+        [JsonPropertyName("aimBone")]
+        public BallisticsAimBone AimBone { get; set; } = BallisticsAimBone.Thorax;
+
+        /// <summary>Apply moving-target lead (target velocity × travel time) to the aim point.</summary>
+        [JsonPropertyName("leadMovingTargets")]
+        public bool LeadMovingTargets { get; set; } = true;
+
+        /// <summary>How the solver picks which hostile to solve for.</summary>
+        [JsonPropertyName("targetSelection")]
+        public BallisticsTargetMode TargetSelection { get; set; } = BallisticsTargetMode.NearestToCrosshair;
+
+        /// <summary>Half-angle (degrees) of the crosshair cone used by NearestToCrosshair selection.</summary>
+        [JsonPropertyName("aimConeDegrees")]
+        public float AimConeDegrees { get; set; } = 12f;
+
+        /// <summary>Max range (meters) the aim solver will engage a target at.</summary>
+        [JsonPropertyName("maxAimDistance")]
+        public float MaxAimDistance { get; set; } = 300f;
+
+        /// <summary>Also solve for AI (scavs / raiders / bosses), not just hostile players.</summary>
+        [JsonPropertyName("targetAI")]
+        public bool TargetAI { get; set; } = false;
+
+        // ── Fireport aim line (bore indicator) ────────────────────────────────
+
+        /// <summary>
+        /// Draw a straight line down the weapon bore (fireport → forward) showing where the barrel
+        /// is literally pointing. Unlike the predicted arc this is not drop-compensated — it is the
+        /// raw aim line, temporally smoothed so it stays steady through recoil / ADS transitions.
+        /// </summary>
+        [JsonPropertyName("showFireportAim")]
+        public bool ShowFireportAim { get; set; } = false;
+
+        /// <summary>Length of the fireport aim line, in meters (5..1000).</summary>
+        [JsonPropertyName("aimlineMaxDistance")]
+        public float AimlineMaxDistance { get; set; } = 150f;
+
+        /// <summary>
+        /// Temporally smooth the fireport aim line (velocity-predict + step-clamp + exponential
+        /// smoothing + hold-last-frame). Off = raw projected line each frame (snappier but jitters).
+        /// </summary>
+        [JsonPropertyName("smoothFireportAim")]
+        public bool SmoothFireportAim { get; set; } = true;
+
+        /// <summary>
+        /// Anchor the ESP crosshair to the fireport aim-line tip instead of screen center.
+        /// Requires both the ESP crosshair and <see cref="ShowFireportAim"/> to be enabled.
+        /// </summary>
+        [JsonPropertyName("crosshairAtAimpoint")]
+        public bool CrosshairAtAimpoint { get; set; } = false;
     }
 
     /// <summary>
@@ -520,6 +604,14 @@ namespace eft_dma_radar.Silk.Config
 
         /// <summary>Master toggle for transit point rendering on the radar.</summary>
         public bool ShowTransits { get; set; } = true;
+
+        /// <summary>
+        /// Continuously refresh transit active-status every tick (like exfils). Off by default:
+        /// a transit's status is polled only until it opens (~1 min into the raid) then left alone.
+        /// Transits stay open once available, so continuously updating their status is basically
+        /// pointless. (Position is always read once from memory at discovery regardless.)
+        /// </summary>
+        public bool TransitContinuousRefresh { get; set; } = false;
 
         // ── Killfeed ────────────────────────────────────────────────────────────
 

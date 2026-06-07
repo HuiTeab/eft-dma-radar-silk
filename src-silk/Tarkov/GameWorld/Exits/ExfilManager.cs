@@ -8,7 +8,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Exits
 {
     /// <summary>
     /// Manages exfiltration points and transit points — reads from the ExfilController
-    /// and TransitController, refreshes exfil status via scatter reads.
+    /// and TransitController, refreshes exfil status and transit active-flags via scatter reads.
     /// Initialized lazily by <see cref="LocalGameWorld"/> on the registration worker thread.
     /// </summary>
     internal sealed class ExfilManager
@@ -37,7 +37,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Exits
         }
 
         /// <summary>
-        /// Refreshes exfil status via scatter reads. Initializes on first call (with retry).
+        /// Refreshes exfil status and transit active-flags via scatter reads. Initializes on first call (with retry).
         /// Called from the registration worker thread.
         /// </summary>
         public void Refresh()
@@ -60,10 +60,23 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Exits
                     Log.WriteLine($"[ExfilManager] Initialized {exfils.Count} exfils, {_transits.Count} transits on attempt {_initAttempts}");
             }
 
-            if (exfils.Count == 0)
+            var transits = _transits;
+
+            if (exfils.Count == 0 && transits.Count == 0)
                 return;
 
-            // Scatter-read status for all exfils in a single DMA round-trip
+            // Upgrade any transit still on its JSON fallback to a live memory position once the
+            // transform chain resolves (transit transforms aren't always ready at raid start, so the
+            // one-shot read in the constructor can miss). Cheap — a handful of transits, and each
+            // latches PositionResolved on first success so this stops attempting once resolved.
+            for (int tx = 0; tx < transits.Count; tx++)
+            {
+                var transit = transits[tx];
+                if (!transit.PositionResolved)
+                    transit.TryResolvePositionFromMemory();
+            }
+
+            // Scatter-read status for all exfils + transits in a single DMA round-trip
             using var map = ScatterReadMap.Get();
             var round1 = map.AddRound();
 
@@ -76,6 +89,28 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Exits
                 {
                     if (index.TryGetResult<int>(0, out var status))
                         exfil.Update(status);
+                };
+            }
+
+            // Transits open ~1 min into a raid and then stay open. By default (once-per-raid) we
+            // poll a transit's active flag only until it has been observed open, then latch and
+            // stop — continuous status updates are pointless. The TransitContinuousRefresh option
+            // re-reads every tick like exfils instead. Slots are offset past the exfil indices so
+            // the two sets never collide in the round's index map.
+            bool continuousTransits = SilkProgram.Config.TransitContinuousRefresh;
+            for (int tx = 0; tx < transits.Count; tx++)
+            {
+                var transit = transits[tx];
+                if (transit.ActiveAddr == 0)
+                    continue;
+                if (!continuousTransits && transit.StatusSettled)
+                    continue;
+                int slot = exfils.Count + tx;
+                round1[slot].AddEntry<bool>(0, transit.ActiveAddr);
+                round1[slot].Callbacks += index =>
+                {
+                    if (index.TryGetResult<bool>(0, out var active))
+                        transit.Update(active);
                 };
             }
 
@@ -183,11 +218,17 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Exits
         {
             if (!Memory.TryReadPtr(_lgw + Offsets.ClientLocalGameWorld.TransitController, out var transitController, false)
                 || transitController == 0)
+            {
+                Log.Write(AppLogLevel.Debug, "[ExfilManager] Transit read: TransitController not found.");
                 return;
+            }
 
             if (!Memory.TryReadPtr(transitController + Offsets.TransitController.TransitPoints, out var dictPtr, false)
                 || dictPtr == 0)
+            {
+                Log.Write(AppLogLevel.Debug, "[ExfilManager] Transit read: TransitPoints dictionary null.");
                 return;
+            }
 
             const uint IL2CPP_DICT_COUNT = 0x20;
             const uint IL2CPP_DICT_ENTRIES = 0x18;
@@ -197,10 +238,18 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Exits
 
             var count = Memory.ReadValue<int>(dictPtr + IL2CPP_DICT_COUNT, false);
             if (count <= 0 || count > 100)
+            {
+                Log.Write(AppLogLevel.Debug, $"[ExfilManager] Transit read: invalid dict count {count} (dict=0x{dictPtr:X}).");
                 return;
+            }
 
             if (!Memory.TryReadPtr(dictPtr + IL2CPP_DICT_ENTRIES, out var entriesPtr, false) || entriesPtr == 0)
+            {
+                Log.Write(AppLogLevel.Debug, $"[ExfilManager] Transit read: entries array null (dict=0x{dictPtr:X}, count={count}).");
                 return;
+            }
+
+            Log.Write(AppLogLevel.Debug, $"[ExfilManager] Transit read: {count} entries in dict @ 0x{dictPtr:X}.");
 
             var entriesBase = entriesPtr + IL2CPP_ENTRIES_START;
 
@@ -215,11 +264,10 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Exits
 
                     var transit = new TransitPoint(transitAddr, _mapId);
                     list.Add(transit);
-                    Log.Write(AppLogLevel.Debug, $"[ExfilManager] Loaded transit: '{transit.Name}' active={transit.IsActive} @ {transit.Position}");
                 }
                 catch (Exception ex)
                 {
-                    Log.Write(AppLogLevel.Debug, $"[ExfilManager] Failed to read transit[{i}]: {ex.Message}");
+                    Log.Write(AppLogLevel.Debug, $"[ExfilManager] Failed to read transit[{i}] @ entry 0x{(entriesBase + (ulong)(i * IL2CPP_ENTRY_SIZE)):X}: {ex.Message}");
                 }
             }
         }

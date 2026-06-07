@@ -63,15 +63,19 @@ namespace eft_dma_radar.Silk.UI
         // ── Accent (auto-save hint, highlight) ──────────────────────────────
         public static readonly Vector4 AccentGreen = new(0.55f, 0.75f, 0.55f, 1f);
 
-        // ── Player-type colors (ImGui, mirrors SKPaints) ────────────────────
-        public static readonly Vector4 PlayerTeammate    = new(0.31f, 0.86f, 0.31f, 1f);
-        public static readonly Vector4 PlayerUSEC        = new(0.90f, 0.24f, 0.24f, 1f);
-        public static readonly Vector4 PlayerBEAR        = new(0.27f, 0.51f, 0.90f, 1f);
-        public static readonly Vector4 PlayerPScav       = new(0.86f, 0.86f, 0.86f, 1f);
-        public static readonly Vector4 PlayerAIScav      = new(0.86f, 0.86f, 0.86f, 1f);
-        public static readonly Vector4 PlayerAIBoss      = new(0.94f, 0.50f, 0.10f, 1f);
-        public static readonly Vector4 PlayerAIRaider    = new(0.70f, 0.35f, 0.35f, 1f);
-        public static readonly Vector4 PlayerStreamer     = new(0.85f, 0.44f, 0.84f, 1f);
+        // ── Player-type colors ──────────────────────────────────────────────
+        // Single source of truth for faction colors across the radar (SKPaints), the Skia ESP
+        // window (EspPaints), and the ImGui aimview (AimviewWidget). Values mirror SKPaints'
+        // Paint* colors byte-for-byte — keep them in sync if either side changes.
+        public static readonly Vector4 PlayerTeammate    = new(0.314f, 0.863f, 0.314f, 1f); // 80,220,80
+        public static readonly Vector4 PlayerUSEC        = new(0.902f, 0.235f, 0.235f, 1f); // 230,60,60
+        public static readonly Vector4 PlayerBEAR        = new(0.275f, 0.510f, 0.902f, 1f); // 70,130,230
+        public static readonly Vector4 PlayerPScav       = new(0.863f, 0.863f, 0.863f, 1f); // 220,220,220
+        public static readonly Vector4 PlayerAIScav      = new(0.941f, 0.902f, 0.235f, 1f); // 240,230,60
+        public static readonly Vector4 PlayerAIBoss      = new(0.902f, 0.196f, 0.902f, 1f); // 230,50,230
+        public static readonly Vector4 PlayerAIRaider    = new(1.000f, 0.706f, 0.118f, 1f); // 255,180,30
+        public static readonly Vector4 PlayerSpecial     = new(1.000f, 0.353f, 0.627f, 1f); // 255,90,160
+        public static readonly Vector4 PlayerStreamer    = new(0.667f, 0.471f, 1.000f, 1f); // 170,120,255
         public static readonly Vector4 PlayerDefault     = new(0.94f, 0.90f, 0.24f, 1f);
 
         // ── Aimview / overlay ───────────────────────────────────────────────
@@ -87,15 +91,16 @@ namespace eft_dma_radar.Silk.UI
         public static readonly Vector4 OverlayLootWishlist  = new(0.00f, 0.90f, 1.0f, 1.0f);
         public static Vector4 ForPlayerType(PlayerType type) => type switch
         {
-            PlayerType.Teammate     => PlayerTeammate,
-            PlayerType.USEC         => PlayerUSEC,
-            PlayerType.BEAR         => PlayerBEAR,
-            PlayerType.PScav        => PlayerPScav,
-            PlayerType.AIScav       => PlayerAIScav,
-            PlayerType.AIBoss       => PlayerAIBoss,
-            PlayerType.AIRaider     => PlayerAIRaider,
-            PlayerType.Streamer     => PlayerStreamer,
-            _                       => PlayerDefault,
+            PlayerType.Teammate      => PlayerTeammate,
+            PlayerType.USEC          => PlayerUSEC,
+            PlayerType.BEAR          => PlayerBEAR,
+            PlayerType.PScav         => PlayerPScav,
+            PlayerType.AIScav        => PlayerAIScav,
+            PlayerType.AIRaider      => PlayerAIRaider,
+            PlayerType.AIBoss        => PlayerAIBoss,
+            PlayerType.SpecialPlayer => PlayerSpecial,
+            PlayerType.Streamer      => PlayerStreamer,
+            _                        => PlayerDefault,
         };
     }
 }

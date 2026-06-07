@@ -186,6 +186,24 @@ namespace eft_dma_radar.Silk.UI.Panels
                 Config.MarkDirty();
             }
 
+            if (Config.ShowTransits)
+            {
+                ImGui.Indent(16);
+
+                bool continuousTransits = Config.TransitContinuousRefresh;
+                if (UIControls.ToggleRow("Continuously Refresh", ref continuousTransits,
+                    "Re-read transit status every tick like exfils. Off (default): a transit's status is " +
+                    "polled only until it opens (~1 min into the raid), then left alone. Transits stay open " +
+                    "once available, so continuously updating their status is basically pointless. " +
+                    "(Position is always read from memory once at discovery either way.)"))
+                {
+                    Config.TransitContinuousRefresh = continuousTransits;
+                    Config.MarkDirty();
+                }
+
+                ImGui.Unindent(16);
+            }
+
             UIControls.Section("Doors");
 
             bool showDoors = Config.ShowDoors;

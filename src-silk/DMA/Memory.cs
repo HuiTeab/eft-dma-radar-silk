@@ -412,13 +412,12 @@ namespace eft_dma_radar.Silk.DMA
                     if (!modulesReady)
                         throw new Exception("Modules failed to load after retries.");
 
-                    // Wait for EFT's IL2CPP runtime to finish initializing the TypeInfoTable.
-                    // The game populates it a few seconds after its modules load; probing it
-                    // directly is the most reliable guard.  We check using the hardcoded
-                    // fallback RVA — if it resolves to a valid table pointer the runtime is
-                    // ready.  Cap at 60 s; Il2CppDumper has its own 30-retry loop as backup.
-                    WaitForTypeInfoTable();
-
+                    // Resolve IL2CPP offsets. Il2CppDumper is self-pacing: it tries the PE-fingerprint
+                    // cache first (no TypeInfoTable read needed — the common case), and only on a cache
+                    // miss runs its own 30-retry loop that waits for the IL2CPP runtime to populate the
+                    // TypeInfoTable. A separate pre-dump wait used to live here, but it probed a hardcoded
+                    // (version-specific) RVA that goes stale on game updates, stalling every launch for the
+                    // full 60 s timeout before the dumper loaded from cache anyway.
                     eft_dma_radar.Silk.Tarkov.Unity.IL2CPP.Il2CppDumper.Dump();
                     // NOTE: CameraManager.Initialize() (AllCameras sig-scan + camera_offsets.json)
                     // is intentionally deferred to Phase 4 (Aimview). Not needed for Phase 1.
@@ -671,54 +670,6 @@ namespace eft_dma_radar.Silk.DMA
             Log.WriteLine($"[Memory] GOM: 0x{GOM:X}");
         }
 
-        /// <summary>
-        /// Spins until EFT's IL2CPP TypeInfoTable pointer is readable, or until the
-        /// 60-second timeout expires.  This ensures <see cref="Il2CppDumper"/> does
-        /// not fire before the game's own IL2CPP runtime has finished initializing.
-        /// </summary>
-        private static void WaitForTypeInfoTable()
-        {
-            var gaBase = GameAssemblyBase;
-            if (gaBase == 0) return;
-
-            var rva = Offsets.Special.TypeInfoTableRva;
-            if (rva == 0)
-            {
-                Log.WriteLine("[Memory] TypeInfoTableRva is 0 — skipping pre-dump wait, Il2CppDumper will sig-scan.");
-                return;
-            }
-
-            const int timeoutMs = 60_000;
-            const int intervalMs = 500;
-            var sw = Stopwatch.StartNew();
-            bool logged = false;
-
-            while (sw.ElapsedMilliseconds < timeoutMs)
-            {
-                try
-                {
-                    var tablePtr = ReadValue<ulong>(gaBase + rva, false);
-                    if (tablePtr.IsValidVirtualAddress())
-                    {
-                        if (logged)
-                            Log.WriteLine($"[Memory] TypeInfoTable ready (waited {sw.ElapsedMilliseconds}ms).");
-                        return;
-                    }
-                }
-                catch { }
-
-                if (!logged)
-                {
-                    Log.WriteLine("[Memory] Waiting for IL2CPP TypeInfoTable to initialize...");
-                    logged = true;
-                }
-
-                Thread.Sleep(intervalMs);
-            }
-
-            Log.WriteLine("[Memory] TypeInfoTable wait timed out — proceeding; Il2CppDumper retry loop will handle it.");
-        }
-
         #endregion
 
         #region Scatter Read
@@ -766,7 +717,12 @@ namespace eft_dma_radar.Silk.DMA
             if (!addr.IsValidVirtualAddress())
                 throw new BadPtrException(0, addr);
             DmaStats.AddDirectRead();
-            return VmmOrThrow().MemReadValue<T>(_pid, addr, ToFlags(useCache));
+            // Use the non-throwing variant so we can attach the faulting address to the
+            // exception — the bare "Memory Read Failed!" from VmmSharpEx tells you nothing
+            // about which read died. The interpolated string is only built on failure.
+            if (!VmmOrThrow().MemReadValue<T>(_pid, addr, out var result, ToFlags(useCache)))
+                throw new VmmException($"ReadValue<{typeof(T).Name}> failed @ 0x{addr:X}");
+            return result;
         }
 
         public static ulong ReadPtr(ulong addr, bool useCache = true)
@@ -793,7 +749,7 @@ namespace eft_dma_radar.Silk.DMA
             if (buffer.IsEmpty) return;
             DmaStats.AddDirectRead();
             if (!VmmOrThrow().MemReadSpan(_pid, addr, buffer, ToFlags(useCache)))
-                throw new VmmException("Memory read failed.");
+                throw new VmmException($"ReadBuffer<{typeof(T).Name}> failed @ 0x{addr:X} ({buffer.Length} elems)");
         }
 
         public static T[] ReadArray<T>(ulong addr, int count, bool useCache = true)
@@ -813,7 +769,7 @@ namespace eft_dma_radar.Silk.DMA
                 throw new BadPtrException(0, addr);
             DmaStats.AddDirectRead();
             return VmmOrThrow().MemReadString(_pid, addr, cb, Encoding.UTF8, ToFlags(useCache))
-                ?? throw new VmmException("String read failed.");
+                ?? throw new VmmException($"ReadString failed @ 0x{addr:X} (cb={cb})");
         }
 
         public static string ReadUnityString(ulong addr, int length = 128, bool useCache = true)
@@ -824,7 +780,7 @@ namespace eft_dma_radar.Silk.DMA
                 throw new BadPtrException(0, addr);
             DmaStats.AddDirectRead();
             return VmmOrThrow().MemReadString(_pid, addr + 0x14, length, Encoding.Unicode, ToFlags(useCache))
-                ?? throw new VmmException("Unity string read failed.");
+                ?? throw new VmmException($"ReadUnityString failed @ 0x{addr + 0x14:X} (len={length})");
         }
 
         #endregion

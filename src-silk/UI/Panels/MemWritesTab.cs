@@ -38,6 +38,13 @@ namespace eft_dma_radar.Silk.UI.Panels
                 Config.MarkDirty();
             }
 
+            bool noVisor = Config.MemWrites.NoVisor;
+            if (UIControls.ToggleRow("No Visor", ref noVisor, "Remove the helmet visor (face-shield) overlay that obscures vision"))
+            {
+                Config.MemWrites.NoVisor = noVisor;
+                Config.MarkDirty();
+            }
+
             if (!masterEnabled)
                 ImGui.EndDisabled();
         }

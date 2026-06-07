@@ -2,8 +2,6 @@
 // Licensed under the PolyForm Noncommercial License 1.0.0.
 // See LICENSE in the repository root for details.
 
-using eft_dma_radar.Silk.Tarkov.Features.Ballistics;
-using eft_dma_radar.Silk.UI.Widgets;
 using ImGuiNET;
 
 namespace eft_dma_radar.Silk.UI.Panels
@@ -172,92 +170,6 @@ namespace eft_dma_radar.Silk.UI.Panels
             {
                 Config.EspShowEnergyHydration = showEnergyHydration;
                 Config.MarkDirty();
-            }
-
-            UIControls.Section("Ballistics (debug)");
-
-            var bcfg = Config.Ballistics ??= new BallisticsConfig();
-
-            bool ballEnabled = bcfg.Enabled;
-            if (UIControls.ToggleRow("Enable Ballistics", ref ballEnabled,
-                "Master toggle for ballistics simulation + debug overlays."))
-            {
-                bcfg.Enabled = ballEnabled;
-                Config.MarkDirty();
-            }
-
-            if (bcfg.Enabled)
-            {
-                ImGui.Indent(16);
-
-                bool drawPredicted = bcfg.DrawPredictedTrajectory;
-                if (UIControls.ToggleRow("Predicted Arc (red)", ref drawPredicted,
-                    "Simulated trajectory from your muzzle to the predicted impact point."))
-                {
-                    bcfg.DrawPredictedTrajectory = drawPredicted;
-                    Config.MarkDirty();
-                }
-
-                bool drawLive = bcfg.DrawLiveShots;
-                if (UIControls.ToggleRow("Live Tracers (green)", ref drawLive,
-                    "Real-time bullet trails read from the game's BallisticsCalculator.Shots list."))
-                {
-                    bcfg.DrawLiveShots = drawLive;
-                    Config.MarkDirty();
-                }
-
-                bool showHud = bcfg.ShowDebugHud;
-                if (UIControls.ToggleRow("Debug HUD Window", ref showHud,
-                    "Floating window with ammo / muzzle velocity / drop table / G1 source."))
-                {
-                    bcfg.ShowDebugHud = showHud;
-                    BallisticsDebugWidget.IsOpen = showHud;
-                    Config.MarkDirty();
-                }
-
-                bool liveG1 = bcfg.UseGameG1Table;
-                if (UIControls.ToggleRow("Use Live G1 Table", ref liveG1,
-                    "Replace the hardcoded G1 table with the game's own once a bullet is observed."))
-                {
-                    bcfg.UseGameG1Table = liveG1;
-                    if (!liveG1) G1Table.Reset();
-                    Config.MarkDirty();
-                }
-
-                float lineWidth = bcfg.LineWidth;
-                if (UIControls.StepperFloat("Line Width", ref lineWidth, 0.5f, 6f, 0.25f, "{0:0.0}px",
-                    "Stroke width for predicted + live shot lines."))
-                {
-                    bcfg.LineWidth = lineWidth;
-                    Config.MarkDirty();
-                }
-
-                int samples = bcfg.PredictedSamples;
-                if (UIControls.Stepper("Predicted Samples", ref samples, 8, 512, 8,
-                    tooltip: "Number of points sampled along the predicted arc."))
-                {
-                    bcfg.PredictedSamples = samples;
-                    Config.MarkDirty();
-                }
-
-                float maxDist = bcfg.PredictedMaxDistance;
-                if (UIControls.StepperFloat("Predicted Max Distance", ref maxDist, 25f, 2000f, 25f, "{0:0}m",
-                    "Stop the predicted arc after this many meters from the muzzle."))
-                {
-                    bcfg.PredictedMaxDistance = maxDist;
-                    Config.MarkDirty();
-                }
-
-                float lifetime = bcfg.LiveShotLifetime;
-                if (UIControls.StepperFloat("Live Shot Lifetime", ref lifetime, 0.5f, 15f, 0.5f, "{0:0.0}s",
-                    "How long bullet trails stay visible after the bullet stops moving."))
-                {
-                    bcfg.LiveShotLifetime = lifetime;
-                    BallisticsFeature.Instance.Tracker.Lifetime = TimeSpan.FromSeconds(lifetime);
-                    Config.MarkDirty();
-                }
-
-                ImGui.Unindent(16);
             }
         }
     }

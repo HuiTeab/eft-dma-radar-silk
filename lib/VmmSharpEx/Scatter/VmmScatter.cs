@@ -265,7 +265,16 @@ public sealed class VmmScatter : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!Vmmi.VMMDLL_Scatter_Execute(_handle))
-            throw new VmmException("Scatter Operation Failed");
+        {
+            // Attach batch context so a failing scatter can be told apart from every other
+            // one in the log — count of prepared reads, pages touched, and a representative
+            // page address. Built only on the (already exceptional) failure path.
+            ulong firstPage = 0;
+            foreach (var p in _pageSet) { firstPage = p; break; }
+            throw new VmmException(firstPage != 0
+                ? $"Scatter Operation Failed ({_prepareCount} reads across {_pageSet.Count} pages, e.g. 0x{firstPage:X})"
+                : $"Scatter Operation Failed ({_prepareCount} reads across {_pageSet.Count} pages)");
+        }
         var executed = Executed;
         int n = _prepareCount;
         int pages = _pageSet.Count;

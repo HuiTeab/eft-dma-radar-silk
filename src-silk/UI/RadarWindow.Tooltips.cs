@@ -77,12 +77,18 @@ namespace eft_dma_radar.Silk.UI
             var textPaint = player.TextPaint;
             int dist = (int)Vector3.Distance(localPlayer.Position, player.Position);
 
-            // Name + faction
-            string faction = player.Type switch
+            // Name + faction / category. Boss guards are promoted to AIRaider for coloring, so check
+            // the IsBossGuard flag first to label them "Guard" rather than "Raider".
+            string faction = player.IsBossGuard ? "Guard" : player.Type switch
             {
                 PlayerType.USEC => "USEC",
                 PlayerType.BEAR => "BEAR",
-                PlayerType.PScav => "PScav",
+                PlayerType.Teammate => "Teammate",
+                PlayerType.PScav => "Player Scav",
+                PlayerType.AIScav => "Scav",
+                PlayerType.AIRaider => "Raider",
+                PlayerType.AIBoss => "Boss",
+                PlayerType.BtrOperator => "BTR Gunner",
                 PlayerType.SpecialPlayer => "Special",
                 PlayerType.Streamer => "Streamer",
                 _ => "?"

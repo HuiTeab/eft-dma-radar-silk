@@ -41,6 +41,21 @@ namespace eft_dma_radar.Silk.Tarkov.Unity
             0x10,               // ObjectClass → TransformInternal
         ];
 
+        /// <summary>
+        /// 4-element variant of <see cref="TransformChain"/> for scene-placed MonoBehaviours
+        /// (transits, BTR path stops, sniper zones). For these the first component (+0x08) is
+        /// already the native <c>TransformInternal</c>; the managed Transform→ObjectClass→
+        /// TransformInternal tail of the full chain returns null (<c>Comp_ObjectClass</c> at +0x20
+        /// is null), so the full chain fails on them.
+        /// </summary>
+        public static readonly uint[] SceneTransformChain =
+        [
+            0x10,               // object → native MonoBehaviour (m_CachedPtr)
+            Comp_GameObject,    // 0x58 — MonoBehaviour → GameObject
+            GO_Components,      // 0x58 — GameObject → ComponentArray
+            0x08,               // First component = native Transform (= TransformInternal)
+        ];
+
         // ── ModuleBase (UnityPlayer.dll offsets) ────────────────────────────
         public const uint GomFallback        = 0x1A233A0;  // UnityPlayer.dll Dec 2025
         public const uint AllCameras         = 0x19F3080;  // AllCameras static (Dec 2025)
@@ -193,6 +208,46 @@ namespace eft_dma_radar.Silk.Tarkov.Unity
             catch
             {
                 return Vector3.Zero;
+            }
+        }
+
+        /// <summary>
+        /// Reads the world-space position AND rotation of a Unity transform from its
+        /// <c>TransformInternal</c> pointer in a single hierarchy read (used for the weapon fireport,
+        /// where the muzzle forward direction = rotation · +Z). Returns false on any read failure.
+        /// </summary>
+        internal static bool ReadWorldPose(ulong transformInternal, out Vector3 position, out Quaternion rotation)
+        {
+            position = Vector3.Zero;
+            rotation = Quaternion.Identity;
+            try
+            {
+                var hierarchy = Memory.ReadValue<ulong>(transformInternal + TransformAccess.HierarchyOffset);
+                if (!SilkUtils.IsValidVirtualAddress(hierarchy))
+                    return false;
+
+                var index = Memory.ReadValue<int>(transformInternal + TransformAccess.IndexOffset);
+                if (index < 0 || index > 150_000)
+                    return false;
+
+                var verticesPtr = Memory.ReadValue<ulong>(hierarchy + TransformHierarchy.VerticesOffset);
+                var indicesPtr  = Memory.ReadValue<ulong>(hierarchy + TransformHierarchy.IndicesOffset);
+                if (!SilkUtils.IsValidVirtualAddress(verticesPtr) || !SilkUtils.IsValidVirtualAddress(indicesPtr))
+                    return false;
+
+                int count    = index + 1;
+                var vertices = Memory.ReadArray<TrsX>(verticesPtr, count);
+                var indices  = Memory.ReadArray<int>(indicesPtr, count);
+                if (vertices.Length < count || indices.Length < count)
+                    return false;
+
+                position = TrsX.ComputeWorldPosition(vertices, indices, index);
+                rotation = TrsX.ComputeWorldRotation(vertices, indices, index);
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
     }

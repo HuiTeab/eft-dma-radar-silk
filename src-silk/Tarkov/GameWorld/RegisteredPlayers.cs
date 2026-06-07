@@ -513,9 +513,10 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
             // Update existing players — mark active/inactive based on registration
             UpdateExistingPlayers(_seenSet);
 
-            // Target: registration worker total under 8ms (below the worker tick budget).
+            // Target is under 8ms (below the worker tick budget), but steady-state 8-18ms is normal
+            // and not worth a warning. Only flag genuine stalls that could cause a visible hitch.
             var totalMs = Stopwatch.GetElapsedTime(swTotal).TotalMilliseconds;
-            if (totalMs > 8)
+            if (totalMs > 40)
                 Log.WriteRateLimited(AppLogLevel.Warning, "rp_slow_total", TimeSpan.FromSeconds(2),
                     $"[RegisteredPlayers] SLOW RefreshRegistration total: {totalMs:F1}ms (tracked={_players.Count})");
         }
@@ -674,7 +675,8 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
                         long swGear = Stopwatch.GetTimestamp();
                                 GearManager.Refresh(entry.Base, entry.Player, entry.IsObserved);
                                 var gearMs = Stopwatch.GetElapsedTime(swGear).TotalMilliseconds;
-                                if (gearMs > 8)
+                                // Deep inventory walks are inherently 8-76ms; only flag pathological reads.
+                                if (gearMs > 60)
                                     Log.WriteLine($"[RegisteredPlayers] SLOW GearManager.Refresh '{entry.Player.Name}': {gearMs:F1}ms");
                         entry.Player.GearReady = true;
                         refreshBudget--;

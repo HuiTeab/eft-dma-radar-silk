@@ -17,7 +17,6 @@ namespace eft_dma_radar.Silk.Tarkov.Features.Ballistics
     public static class G1Table
     {
         private const float SpeedOfSound = 343f;
-        private const float MachStep = 0.05f;
 
         // ── Hardcoded fallback (ported from prior build) ──────────────────────────
         // Declared first so it's initialized before _table below depends on it.
@@ -81,17 +80,35 @@ namespace eft_dma_radar.Silk.Tarkov.Features.Ballistics
         public static float CalculateDragCoefficient(float velocity)
         {
             var g1 = _table.AsSpan();
-            int num = (int)Math.Round(Math.Floor(velocity / SpeedOfSound / MachStep));
-
-            if (num <= 0)
+            if (g1.Length == 0)
                 return 0f;
-            if (num > g1.Length - 1)
+
+            float mach = velocity / SpeedOfSound;
+
+            // Clamp to the table's endpoints.
+            if (mach <= g1[0].Mach)
+                return g1[0].Ballist;
+            if (mach >= g1[^1].Mach)
                 return g1[^1].Ballist;
 
-            float num2 = g1[num - 1].Mach * SpeedOfSound;
-            float num3 = g1[num].Mach * SpeedOfSound;
-            float ballist = g1[num - 1].Ballist;
-            return (g1[num].Ballist - ballist) / (num3 - num2) * (velocity - num2) + ballist;
+            // Binary-search the bracketing pair [lo, lo+1] with g1[lo].Mach <= mach < g1[lo+1].Mach.
+            // The table is sorted by Mach but NON-uniformly spaced (it skips 0.65 and switches between
+            // 0.025 / 0.05 / 0.1 steps), so index arithmetic on a fixed step would pick the wrong row in
+            // the transonic / supersonic band. Searching by value is correct for any spacing.
+            int lo = 0, hi = g1.Length - 1;
+            while (hi - lo > 1)
+            {
+                int mid = (lo + hi) >> 1;
+                if (g1[mid].Mach <= mach) lo = mid;
+                else hi = mid;
+            }
+
+            float m0 = g1[lo].Mach, m1 = g1[lo + 1].Mach;
+            float b0 = g1[lo].Ballist, b1 = g1[lo + 1].Ballist;
+            float span = m1 - m0;
+            if (span <= 1e-6f)
+                return b0;
+            return b0 + (b1 - b0) * (mach - m0) / span;
         }
 
         private static G1DragModel[] CloneFallback()

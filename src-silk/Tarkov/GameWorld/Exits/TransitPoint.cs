@@ -2,23 +2,41 @@
 // Licensed under the PolyForm Noncommercial License 1.0.0.
 // See LICENSE in the repository root for details.
 
+using eft_dma_radar.Silk.Tarkov.Unity;
+
 namespace eft_dma_radar.Silk.Tarkov.GameWorld.Exits
 {
     /// <summary>
-    /// A transit point that moves the player between maps.
-    /// Read from the TransitController dictionary; position resolved from static JSON data.
-    /// Transit points are static — no periodic status refresh needed.
+    /// A transit point that moves the player between maps. Read from the TransitController dictionary.
+    /// Name is static (read once); position is read from memory via the transform chain (falling back
+    /// to static JSON map data if that fails); the <see cref="IsActive"/> flag is refreshed by
+    /// <see cref="ExfilManager"/> since it flips when the transit opens (~1 min into a raid).
     /// </summary>
     internal sealed class TransitPoint
     {
         /// <summary>Display name (e.g. "Transit to Customs").</summary>
         public string Name { get; }
 
-        /// <summary>World position (from static JSON map data).</summary>
-        public Vector3 Position { get; }
+        /// <summary>World position — read from the live transform chain (same as doors/exfils), with static JSON as the initial fallback until the chain resolves.</summary>
+        public Vector3 Position { get; private set; }
 
-        /// <summary>Whether this transit is currently active (usable).</summary>
-        public bool IsActive { get; }
+        /// <summary>True once <see cref="Position"/> has been read from live memory (vs. the static JSON fallback).</summary>
+        public bool PositionResolved { get; private set; }
+
+        /// <summary>Whether this transit is currently active (usable). Refreshed by <see cref="ExfilManager"/>.</summary>
+        public bool IsActive { get; private set; }
+
+        /// <summary>
+        /// True once this transit has been observed open. In once-per-raid mode <see cref="ExfilManager"/>
+        /// stops polling after this latches (transits stay open once available).
+        /// </summary>
+        public bool StatusSettled { get; private set; }
+
+        /// <summary>Address of the transit's <c>active</c> flag — used by <see cref="ExfilManager"/> for scatter refresh.</summary>
+        public ulong ActiveAddr { get; }
+
+        /// <summary>Address of the transit object itself (the TransitController dictionary value) — root of the transform chain used to read <see cref="Position"/>.</summary>
+        public ulong Base { get; }
 
         // Cached distance label — avoids per-frame string allocation + MeasureText
         private int _cachedDistVal = -1;
@@ -30,8 +48,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Exits
             if (!Memory.TryReadPtr(baseAddr + Offsets.TransitPoint.parameters, out var parameters, false))
                 throw new Exception("Failed to read transit parameters");
 
-            // Read active flag
-            IsActive = Memory.ReadValue<bool>(parameters + Offsets.TransitParameters.active, false);
+            Base = baseAddr;
 
             // Read destination location (map ID)
             string destinationLabel = "Unknown";
@@ -46,8 +63,82 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Exits
 
             Name = $"Transit to {destinationLabel}";
 
-            // Resolve position from static JSON map data
-            Position = GetStaticPosition(mapId, destinationLabel);
+            // Position: prefer the live transform chain (scene variant — see TryResolvePositionFromMemory).
+            // If it can't resolve this early in the raid, seed with static JSON; ExfilManager re-attempts
+            // each refresh until it resolves, which also gives transits without JSON data (e.g. new maps
+            // like Icebreaker) a live position.
+            if (!TryResolvePositionFromMemory())
+                Position = GetStaticPosition(mapId, destinationLabel);
+
+            // Cache the active-flag address so ExfilManager can re-read it each tick, then seed the
+            // initial value. Done last so the latch log (in SetActive) sees a valid Name/Position.
+            ActiveAddr = parameters + Offsets.TransitParameters.active;
+            SetActive(Memory.ReadValue<bool>(ActiveAddr, false));
+        }
+
+        /// <summary>Applies a freshly-read active flag from the <see cref="ExfilManager"/> refresh.</summary>
+        public void Update(bool active) => SetActive(active);
+
+        /// <summary>Sets the active flag and latches <see cref="StatusSettled"/> once the transit is observed open.</summary>
+        private void SetActive(bool active)
+        {
+            IsActive = active;
+            if (active && !StatusSettled)
+            {
+                StatusSettled = true;
+                Log.WriteLine($"[TransitPoint] '{Name}' is now OPEN (status latched) @ {Position}");
+            }
+        }
+
+        /// <summary>
+        /// Attempts to read the transit's world position from live memory. Transits are scene-placed
+        /// MonoBehaviours (like BTR path stops / sniper zones), so the short scene chain
+        /// (<see cref="UnityOffsets.SceneTransformChain"/>) resolves them — the full 6-hop
+        /// <see cref="UnityOffsets.TransformChain"/>'s managed tail returns null for these objects,
+        /// which is why the position previously fell back to JSON. The scene chain is tried first,
+        /// then the full chain as a safety net. On success updates <see cref="Position"/>, latches
+        /// <see cref="PositionResolved"/>, and returns true. Safe to call repeatedly:
+        /// <see cref="ExfilManager"/> retries each refresh in case the transform isn't ready yet.
+        /// </summary>
+        public bool TryResolvePositionFromMemory()
+        {
+            if (PositionResolved)
+                return true;
+
+            if (TryReadPositionVia(UnityOffsets.SceneTransformChain, out var pos)
+                || TryReadPositionVia(UnityOffsets.TransformChain, out pos))
+            {
+                Position = pos;
+                PositionResolved = true;
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Walks <paramref name="chain"/> from <see cref="Base"/> to a TransformInternal and reads a
+        /// world position from it. Returns false (and <see cref="Vector3.Zero"/>) if the chain can't
+        /// resolve or the position is invalid, so the caller can try the next chain.
+        /// </summary>
+        private bool TryReadPositionVia(uint[] chain, out Vector3 pos)
+        {
+            pos = Vector3.Zero;
+            try
+            {
+                if (Memory.TryReadPtrChain(Base, chain, out var transformInternal, false))
+                {
+                    var p = UnityOffsets.ReadWorldPosition(transformInternal);
+                    if (p != Vector3.Zero && float.IsFinite(p.X))
+                    {
+                        pos = p;
+                        return true;
+                    }
+                }
+            }
+            catch { /* not ready / wrong chain — caller tries the next one */ }
+
+            return false;
         }
 
         /// <summary>

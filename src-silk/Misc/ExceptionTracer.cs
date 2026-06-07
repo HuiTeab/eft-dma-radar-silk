@@ -17,18 +17,26 @@ namespace eft_dma_radar.Silk.Misc
     /// or by setting the environment variable <c>SILK_TRACE_DMA_EXCEPTIONS=1</c>.
     /// </para>
     /// <para>
-    /// Each unique (exception-type + call-site) pair is logged exactly once with a stack trace so
-    /// you can pinpoint which <c>Memory.ReadX</c>/<c>ReadArray</c>/<c>ReadBuffer</c> call is faulting
-    /// without drowning the log in duplicates.
+    /// Each unique (exception-type + call-site) pair is logged exactly once with a full stack trace
+    /// so you can pinpoint which <c>Memory.ReadX</c>/<c>ReadArray</c>/<c>ReadBuffer</c> call is faulting
+    /// without drowning the log in duplicates. Every site also keeps a running failure count, and a
+    /// site is re-logged when its count crosses an escalating threshold (10, 100, 1k, …) so a read
+    /// that "fails very bad" stands out from one that fails once.
     /// </para>
     /// </summary>
     internal static class ExceptionTracer
     {
-        private static readonly ConcurrentDictionary<string, int> _seen = new(StringComparer.Ordinal);
-        private static int _installed;
-        private static int _totalLogged;
+        private sealed class SiteStat
+        {
+            public long Count;   // total times this call site has thrown (Interlocked)
+            public int Index;    // 1-based log ordinal, assigned on first sighting
+        }
 
-        /// <summary>Maximum distinct call sites to log before the tracer silences itself.</summary>
+        private static readonly ConcurrentDictionary<string, SiteStat> _sites = new(StringComparer.Ordinal);
+        private static int _installed;
+        private static int _distinctSites;
+
+        /// <summary>Max distinct call sites to emit a full trace for; counts keep tracking past this.</summary>
         public const int MaxDistinctSites = 200;
 
         // Default OFF — opt-in by setting SILK_TRACE_DMA_EXCEPTIONS=1
@@ -51,7 +59,7 @@ namespace eft_dma_radar.Silk.Misc
 
             AppDomain.CurrentDomain.FirstChanceException += OnFirstChance;
             Log.WriteLine("[ExceptionTracer] First-chance DMA exception tracing ENABLED. " +
-                          $"Each unique call site will log once (max {MaxDistinctSites}).");
+                          $"Each call site logs a full trace once (max {MaxDistinctSites} sites), then re-logs at escalating failure counts.");
         }
 
         private static void OnFirstChance(object? sender, FirstChanceExceptionEventArgs e)
@@ -60,26 +68,40 @@ namespace eft_dma_radar.Silk.Misc
             if (ex is not VmmException && ex is not BadPtrException)
                 return;
 
-            if (_totalLogged >= MaxDistinctSites)
-                return;
+            // Cheap stack walk (no PDB/file-info lookup) just to fingerprint the call site.
+            // This runs on EVERY DMA exception, so the expensive file-info walk is reserved
+            // for the once-per-site detailed log below.
+            var keyTrace = new System.Diagnostics.StackTrace(1, fNeedFileInfo: false);
+            string siteKey = BuildSiteKey(ex, keyTrace);
 
-            // Capture the FULL managed call stack at the throw site (skip this handler frame).
-            // ex.StackTrace is often just the throwing frame for first-chance events,
-            // so we walk the live stack here to find our app's calling frames.
-            var trace = new System.Diagnostics.StackTrace(1, fNeedFileInfo: true);
+            var stat = _sites.GetOrAdd(siteKey, static _ => new SiteStat());
+            long count = Interlocked.Increment(ref stat.Count);
 
-            string siteKey = BuildSiteKey(ex, trace);
-            if (!_seen.TryAdd(siteKey, 1))
-                return;
-
-            int n = Interlocked.Increment(ref _totalLogged);
-
-            Log.WriteLine($"[ExceptionTracer #{n}] {ex.GetType().Name}: {ex.Message}");
-            Log.WriteLine(trace.ToString());
-
-            if (n == MaxDistinctSites)
-                Log.WriteLine($"[ExceptionTracer] Reached limit ({MaxDistinctSites}) — further unique sites will be suppressed.");
+            if (count == 1L)
+            {
+                // First sighting of this call site — emit the full trace (with file/line info) once.
+                int n = Interlocked.Increment(ref _distinctSites);
+                stat.Index = n;
+                if (n <= MaxDistinctSites)
+                {
+                    var detailed = new System.Diagnostics.StackTrace(1, fNeedFileInfo: true);
+                    Log.WriteLine($"[ExceptionTracer #{n}] {ex.GetType().Name}: {ex.Message}");
+                    Log.WriteLine(detailed.ToString());
+                    if (n == MaxDistinctSites)
+                        Log.WriteLine($"[ExceptionTracer] Reached limit ({MaxDistinctSites}) distinct sites — new sites won't emit a trace (counts still tracked).");
+                }
+            }
+            else if (stat.Index > 0 && stat.Index <= MaxDistinctSites && IsEscalation(count))
+            {
+                // A read that keeps failing — re-surface it (with its current count) so a site
+                // that "fails very bad" is obvious without scrolling back to the original trace.
+                Log.WriteLine($"[ExceptionTracer #{stat.Index}] reached {count:N0} failures: {ex.GetType().Name}: {ex.Message}");
+            }
         }
+
+        /// <summary>True at 10, 100, 1k, 10k, 100k, then every 1M — escalating, log-spaced thresholds.</summary>
+        private static bool IsEscalation(long c) =>
+            c == 10 || c == 100 || c == 1_000 || c == 10_000 || c == 100_000 || (c % 1_000_000 == 0);
 
         private static string BuildSiteKey(Exception ex, System.Diagnostics.StackTrace trace)
         {

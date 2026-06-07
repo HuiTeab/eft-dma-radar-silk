@@ -108,6 +108,18 @@ internal static class HotkeyManager
             "Show/hide the center crosshair overlay on the ESP window",
             static e => { if (e.IsDown) { SilkProgram.Config.EspShowCrosshair = !SilkProgram.Config.EspShowCrosshair; SilkProgram.Config.MarkDirty(); } }),
 
+        // Ballistics
+        new("ToggleAimPoint", "Toggle Aim Point", "Ballistics",
+            "Show the ballistics aim-point (holdover + lead) indicator and target highlight. " +
+            "Toggle flips it on/off; OnKey (hold) shows it only while the key is held.",
+            static e =>
+            {
+                var c = SilkProgram.Config.Ballistics;
+                if (c is null) return;
+                if (ApplyToggle("ToggleAimPoint", e, () => c.DrawAimPoint, v => c.DrawAimPoint = v))
+                    SilkProgram.Config.MarkDirty();
+            }),
+
         // Presets
         new("PresetCycleNext", "Next Preset", "Presets",
             "Cycle to the next radar preset in your saved list, then Custom",
@@ -238,6 +250,43 @@ internal static class HotkeyManager
     {
         var key = GetBindingDisplay(actionId);
         return key is null ? description : $"{description}  [{key}]";
+    }
+
+    /// <summary>
+    /// Resolves the configured trigger mode for an action, defaulting to
+    /// <see cref="HotkeyMode.Toggle"/> when the action has no stored binding yet.
+    /// </summary>
+    private static HotkeyMode ModeOf(string actionId)
+        => SilkProgram.Config.Hotkeys.TryGetValue(actionId, out var hk) ? hk.Mode : HotkeyMode.Toggle;
+
+    /// <summary>
+    /// Drives a boolean setting from a key event according to the action's configured
+    /// <see cref="HotkeyMode"/>:
+    /// <list type="bullet">
+    ///   <item><see cref="HotkeyMode.Toggle"/> — flips the value on key-down; key-up is ignored.</item>
+    ///   <item><see cref="HotkeyMode.OnKey"/> — hold: the value tracks the key, <see langword="true"/>
+    ///     while held and <see langword="false"/> on release.</item>
+    /// </list>
+    /// Handlers fire on both the down and up edges (the input worker dispatches on every key
+    /// transition), which is what lets OnKey react to release. Returns <see langword="true"/> only
+    /// when the value actually changed, so callers persist / log on a real transition.
+    /// </summary>
+    private static bool ApplyToggle(string actionId, InputManager.KeyInputEventArgs e,
+        Func<bool> get, Action<bool> set)
+    {
+        if (ModeOf(actionId) == HotkeyMode.OnKey)
+        {
+            if (get() == e.IsDown)
+                return false; // already in the desired hold state
+            set(e.IsDown);
+            return true;
+        }
+
+        // Toggle: act on the rising edge only.
+        if (!e.IsDown)
+            return false;
+        set(!get());
+        return true;
     }
 
     /// <summary>

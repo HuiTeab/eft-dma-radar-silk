@@ -5,6 +5,7 @@
 #pragma warning disable CS0162 // Unreachable code (HARD_DISABLE const)
 using eft_dma_radar.Silk.DMA.Features;
 using eft_dma_radar.Silk.DMA.ScatterAPI;
+using eft_dma_radar.Silk.Tarkov.Features.MemoryWrites;
 
 namespace eft_dma_radar.Silk.Tarkov.Features
 {
@@ -28,6 +29,8 @@ namespace eft_dma_radar.Silk.Tarkov.Features
             // only fires when a member of the closed generic is first touched.
             RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<NightVision>).TypeHandle);
             RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<ThermalVision>).TypeHandle);
+            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<NoVisor>).TypeHandle);
+            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<BallisticAdjustment>).TypeHandle);
 
             // Ballistics is a read-only feature (not a MemWriteFeature). Its own static
             // ctor registers it with IFeature.AllFeatures so OnRaidStart/End hooks fire.

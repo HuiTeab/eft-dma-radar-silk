@@ -32,8 +32,8 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Ballistics
         public int LastFireIndex { get; private set; }
         /// <summary>Count of currently tracked shots after the latest <see cref="Update"/>.</summary>
         public int TrackedCount { get; private set; }
-        /// <summary>True once <see cref="G1Table.SetFromGame"/> has accepted a real read.</summary>
-        public bool G1Captured { get; private set; }
+        /// <summary>True once <see cref="G1Table.SetFromGame"/> has accepted a real read. Internal gate.</summary>
+        private bool G1Captured { get; set; }
 
         public void Clear()
         {

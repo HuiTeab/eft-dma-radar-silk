@@ -333,6 +333,8 @@ namespace eft_dma_radar.Silk.UI.Widgets
             _ => $"{slot}:"
         };
 
+        // This widget only lists human hostiles (p.IsHuman && p.IsHostile), so AI scav/raider/boss
+        // types never reach these helpers — only PMC / player-scav / special / streamer labels apply.
         private static string GetFactionName(PlayerType t) => t switch
         {
             PlayerType.USEC => "USEC",
@@ -353,14 +355,9 @@ namespace eft_dma_radar.Silk.UI.Widgets
             _                        => ""
         };
 
-        private static Vector4 GetPlayerColor(PlayerType t) => t switch
-        {
-            PlayerType.USEC or PlayerType.BEAR => new Vector4(0.38f, 0.55f, 1f, 1f),
-            PlayerType.PScav                   => new Vector4(0.9f, 0.8f, 0.2f, 1f),
-            PlayerType.SpecialPlayer           => new Vector4(1f, 0.4f, 0f, 1f),
-            PlayerType.Streamer                => new Vector4(0.6f, 0.2f, 1f, 1f),
-            _                                  => new Vector4(1f, 1f, 1f, 1f)
-        };
+        // Faction color routed through the shared UITheme palette (single source of truth shared with
+        // the radar, the Skia ESP window, and the aimview) so the watchlist agrees with every overlay.
+        private static Vector4 GetPlayerColor(PlayerType t) => UITheme.ForPlayerType(t);
 
         /// <summary>
         /// Gets profile data for a player, caching it on the player object for subsequent frames.

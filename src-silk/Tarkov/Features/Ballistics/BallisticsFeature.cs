@@ -5,6 +5,7 @@
 using eft_dma_radar.Silk.DMA.Features;
 using eft_dma_radar.Silk.Misc.Workers;
 using eft_dma_radar.Silk.Tarkov.GameWorld.Ballistics;
+using eft_dma_radar.Silk.Tarkov.Unity;
 
 namespace eft_dma_radar.Silk.Tarkov.Features.Ballistics
 {
@@ -41,11 +42,29 @@ namespace eft_dma_radar.Silk.Tarkov.Features.Ballistics
         /// <summary>Pre-sampled trajectory points for rendering. Length 0 when invalid.</summary>
         public Vector3[] LocalTrajectory { get; private set; } = Array.Empty<Vector3>();
 
+        /// <summary>Latest aim solution (holdover + lead) for the selected target. Null when none.</summary>
+        public AimSolution? LocalAimSolution { get; private set; }
+
+        /// <summary>Name of the player the aim solution is computed for (HUD). Null when none.</summary>
+        public string? AimTargetName { get; private set; }
+
+        /// <summary>Base pointer of the current aim target (0 when none). Drives the radar + aimview highlight.</summary>
+        public ulong AimTargetBase { get; private set; }
+
+        /// <summary>
+        /// True when the aim-point indicator is active and <paramref name="playerBase"/> is the player the
+        /// solver is currently locked onto. Used by the radar + aimview to mark that target distinctly.
+        /// </summary>
+        public bool IsAimTarget(ulong playerBase)
+        {
+            if (playerBase == 0 || playerBase != AimTargetBase)
+                return false;
+            var cfg = SilkProgram.Config?.Ballistics;
+            return cfg is not null && cfg.Enabled && cfg.DrawAimPoint;
+        }
+
         /// <summary>Loaded ammo's short name (for HUD).</summary>
         public string? CurrentAmmoShortName => Resolver.CurrentAmmoShortName;
-
-        /// <summary>Loaded ammo's base velocity (m/s, before weapon/mod multipliers) — for HUD.</summary>
-        public float? BaseMuzzleVelocity => Resolver.CurrentBallistics?.BulletSpeed;
 
         /// <summary>Effective muzzle velocity after weapon + attachment modifiers (m/s) — for HUD.</summary>
         public float? EffectiveMuzzleVelocity =>
@@ -67,8 +86,7 @@ namespace eft_dma_radar.Silk.Tarkov.Features.Ballistics
             Tracker.Clear();
             G1Table.Reset();
             Resolver.Reset();
-            LocalPredicted = null;
-            LocalTrajectory = Array.Empty<Vector3>();
+            ClearLocalShot();
         }
 
         public void OnRaidStart()
@@ -110,9 +128,15 @@ namespace eft_dma_radar.Silk.Tarkov.Features.Ballistics
             // Granular gating: only read what a downstream consumer is actually using.
             //   - Live shot tracker → drives green tracers AND the debug HUD's live count
             //   - Predicted trajectory → drives red arc AND the HUD's drop table
-            // When neither consumer needs the data we skip the DMA entirely.
+            //   - Aim point → drives the holdover/lead indicator AND its HUD readout
+            // When nothing needs the data we skip the DMA entirely.
             bool needLiveShots = cfg.DrawLiveShots || cfg.ShowDebugHud;
-            bool needPredicted = cfg.DrawPredictedTrajectory || cfg.ShowDebugHud;
+            bool needPredictedArc = cfg.DrawPredictedTrajectory || cfg.ShowDebugHud;
+            bool needAimPoint = cfg.DrawAimPoint || cfg.ShowDebugHud;
+            // The fireport aim line only needs the resolved bore pose (source + direction),
+            // so it rides on the same shot resolve as the arc / aim solver.
+            bool needAimLine = cfg.ShowFireportAim;
+            bool needShot = needPredictedArc || needAimPoint || needAimLine;
 
             // 1) Live shot tracer history from BallisticsCalculator.Shots.
             if (needLiveShots)
@@ -120,46 +144,178 @@ namespace eft_dma_radar.Silk.Tarkov.Features.Ballistics
             else if (Tracker.TrackedCount > 0)
                 Tracker.Clear(); // free memory + stop emitting stale snapshots
 
-            // 2) Predicted trajectory for local player.
-            if (!needPredicted)
+            // 2) Resolve the local player's current shot (shared by the arc + the aim solver).
+            if (!needShot)
             {
-                LocalPredicted = null;
-                LocalTrajectory = Array.Empty<Vector3>();
+                ClearLocalShot();
                 return;
             }
 
             if (game.LocalPlayer is not LocalPlayer lp || !lp.IsAlive)
             {
-                LocalPredicted = null;
-                LocalTrajectory = Array.Empty<Vector3>();
+                ClearLocalShot();
                 return;
             }
 
             if (!Resolver.TryResolve(lp, out var shot))
             {
-                LocalPredicted = null;
-                LocalTrajectory = Array.Empty<Vector3>();
+                ClearLocalShot();
                 return;
             }
 
-            int sampleCount = Math.Clamp(cfg.PredictedSamples, 8, 512);
-            float maxDist = Math.Clamp(cfg.PredictedMaxDistance, 25f, 2000f);
-            var buffer = new Vector3[sampleCount];
-            int written = TrajectoryMath.BuildTrajectoryPoints(shot, buffer, maxDist);
-            if (written < 2)
+            LocalPredicted = shot;
+
+            // 2a) Predicted arc polyline (red).
+            if (needPredictedArc)
             {
-                LocalPredicted = null;
+                int sampleCount = Math.Clamp(cfg.PredictedSamples, 8, 512);
+                float maxDist = Math.Clamp(cfg.PredictedMaxDistance, 25f, 2000f);
+                var buffer = new Vector3[sampleCount];
+                int written = TrajectoryMath.BuildTrajectoryPoints(shot, buffer, maxDist);
+                if (written >= 2)
+                {
+                    if (written != buffer.Length)
+                    {
+                        var trimmed = new Vector3[written];
+                        Array.Copy(buffer, trimmed, written);
+                        buffer = trimmed;
+                    }
+                    LocalTrajectory = buffer;
+                }
+                else
+                {
+                    LocalTrajectory = Array.Empty<Vector3>();
+                }
+            }
+            else
+            {
                 LocalTrajectory = Array.Empty<Vector3>();
+            }
+
+            // 2b) Aim solution (holdover + lead) for the selected target.
+            if (needAimPoint)
+                SolveAimPoint(game, shot, cfg);
+            else
+            {
+                LocalAimSolution = null;
+                AimTargetName = null;
+            }
+        }
+
+        private void ClearLocalShot()
+        {
+            LocalPredicted = null;
+            LocalTrajectory = Array.Empty<Vector3>();
+            LocalAimSolution = null;
+            AimTargetName = null;
+            AimTargetBase = 0;
+        }
+
+        /// <summary>
+        /// Pick a hostile target (nearest the crosshair, or nearest by distance) and run
+        /// <see cref="AimSolver"/> for it, storing the result in <see cref="LocalAimSolution"/>.
+        /// </summary>
+        private void SolveAimPoint(LocalGameWorld game, ShotState shot, BallisticsConfig cfg)
+        {
+            LocalAimSolution = null;
+            AimTargetName = null;
+            ulong prevTarget = AimTargetBase;
+            AimTargetBase = 0;
+
+            var bone = cfg.AimBone == BallisticsAimBone.Head ? Bones.HumanHead : Bones.HumanSpine3;
+            float maxDist = Math.Clamp(cfg.MaxAimDistance, 25f, 1000f);
+            float maxDistSq = maxDist * maxDist;
+
+            Vector3 origin = shot.SourcePosition;
+            Vector3 aimDir = Vector3.Normalize(shot.InitialDirection);
+            bool nearestToCrosshair = cfg.TargetSelection == BallisticsTargetMode.NearestToCrosshair;
+            float cosCone = MathF.Cos(Math.Clamp(cfg.AimConeDegrees, 1f, 90f) * (MathF.PI / 180f));
+
+            Player? best = null;
+            Vector3 bestBone = default;
+            float bestScore = float.MaxValue; // smaller = better (angular miss, or squared distance)
+            bool targetAI = cfg.TargetAI;
+
+            // Diagnostic counters — surfaced (rate-limited) when nothing locks so the exact reason is
+            // visible: eligibility vs missing skeleton/bone vs out of range vs outside the aim cone.
+            int alive = 0, rejEligible = 0, rejSkeleton = 0, rejBone = 0, rejRange = 0, rejCone = 0;
+
+            foreach (var p in game.RegisteredPlayers)
+            {
+                if (p is null || !p.IsAlive)
+                    continue;
+                alive++;
+                // Hostile humans always; AI (scavs / raiders / bosses) only when the option is on.
+                bool eligible = p.IsHostile
+                    || (targetAI && p.Type is PlayerType.AIScav or PlayerType.AIRaider or PlayerType.AIBoss);
+                if (!eligible)
+                {
+                    rejEligible++;
+                    continue;
+                }
+                var skel = p.Skeleton;
+                if (skel is null)
+                {
+                    rejSkeleton++;
+                    continue;
+                }
+                if (skel.GetBonePosition(bone) is not Vector3 bonePos)
+                {
+                    rejBone++;
+                    continue;
+                }
+
+                Vector3 to = bonePos - origin;
+                float distSq = to.LengthSquared();
+                if (distSq > maxDistSq || distSq < 1f)
+                {
+                    rejRange++;
+                    continue;
+                }
+
+                if (nearestToCrosshair)
+                {
+                    float cosAng = Vector3.Dot(to / MathF.Sqrt(distSq), aimDir);
+                    if (cosAng < cosCone)
+                    {
+                        rejCone++;
+                        continue; // outside the aim cone (FOV filter)
+                    }
+                    // Inside the cone, pick the NEAREST enemy by distance — don't pass over a close
+                    // target for a farther one just because it's a hair better centered on the crosshair.
+                    if (distSq < bestScore) { bestScore = distSq; best = p; bestBone = bonePos; }
+                }
+                else if (distSq < bestScore)
+                {
+                    bestScore = distSq; best = p; bestBone = bonePos;
+                }
+            }
+
+            if (best is null)
+            {
+                Log.WriteRateLimited(AppLogLevel.Info, "ball.notarget", TimeSpan.FromSeconds(2),
+                    $"no lockable target: {alive} alive, rejected[eligible={rejEligible} skel={rejSkeleton} " +
+                    $"bone={rejBone} range={rejRange} cone={rejCone}] " +
+                    $"(maxDist={maxDist:F0}m, ai={targetAI}, mode={(nearestToCrosshair ? "crosshair" : "nearest")})",
+                    "Ballistics");
                 return;
             }
-            if (written != buffer.Length)
-            {
-                var trimmed = new Vector3[written];
-                Array.Copy(buffer, trimmed, written);
-                buffer = trimmed;
-            }
-            LocalPredicted = shot;
-            LocalTrajectory = buffer;
+
+            var sol = AimSolver.Solve(origin, bestBone, best.Velocity, shot.MuzzleSpeed,
+                shot.Ballistics, cfg.LeadMovingTargets);
+            if (!sol.Valid)
+                return;
+
+            AimTargetBase = best.Base;
+            LocalAimSolution = sol;
+            AimTargetName = best.Name;
+
+            // Info-log when the locked target changes so the user can see (without enabling debug
+            // logging) exactly who the solver picked and what it's holding over.
+            if (best.Base != prevTarget)
+                Log.WriteLine(
+                    $"[Ballistics] Aim target -> {best.Name} @ {sol.Distance:F0}m  holdover={sol.Holdover * 100f:F1}cm  " +
+                    $"lead={sol.Lead * 100f:F1}cm  travel={sol.TravelTime * 1000f:F0}ms  conv={sol.Converged}");
         }
 
         private void ShutdownWorker()

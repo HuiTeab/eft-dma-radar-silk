@@ -81,6 +81,42 @@ namespace eft_dma_radar.Silk.UI.ESP
             IsAntialias = true,
         };
 
+        /// <summary>Aim-point indicator ring (drop + lead compensated) — cyan.</summary>
+        public static SKPaint AimPointRing { get; } = new()
+        {
+            Color = new SKColor(0, 220, 255, 235),
+            StrokeWidth = 2f,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+        };
+
+        /// <summary>Aim-point center dot.</summary>
+        public static SKPaint AimPointDot { get; } = new()
+        {
+            Color = new SKColor(0, 220, 255, 245),
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true,
+        };
+
+        /// <summary>Connector from the target bone to the aim point (the holdover + lead vector).</summary>
+        public static SKPaint AimPointLine { get; } = new()
+        {
+            Color = new SKColor(0, 220, 255, 150),
+            StrokeWidth = 1.2f,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+        };
+
+        /// <summary>Straight fireport (bore) aim line — white, not drop-compensated.</summary>
+        public static SKPaint FireportAim { get; } = new()
+        {
+            Color = new SKColor(255, 255, 255, 220),
+            StrokeWidth = 1.5f,
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true,
+            StrokeCap = SKStrokeCap.Round,
+        };
+
         #endregion
 
         #region Health Bar
@@ -116,46 +152,39 @@ namespace eft_dma_radar.Silk.UI.ESP
         #endregion
 
         #region Player Type — Box + Text
+        // Colors are sourced from UITheme.ForPlayerType — the shared faction palette used by the
+        // radar (SKPaints) and the ImGui aimview — so all three overlays stay in agreement. Box
+        // paints keep the historical 220 alpha; text paints are fully opaque.
 
-        // USEC
-        public static SKPaint BoxUSEC { get; } = MakeBoxPaint(230, 60, 60);
-        public static SKPaint TextUSEC { get; } = MakeFillPaint(230, 60, 60);
+        public static SKPaint BoxUSEC { get; } = MakeBoxPaint(PlayerType.USEC);
+        public static SKPaint TextUSEC { get; } = MakeFillPaint(PlayerType.USEC);
 
-        // BEAR
-        public static SKPaint BoxBEAR { get; } = MakeBoxPaint(70, 130, 230);
-        public static SKPaint TextBEAR { get; } = MakeFillPaint(70, 130, 230);
+        public static SKPaint BoxBEAR { get; } = MakeBoxPaint(PlayerType.BEAR);
+        public static SKPaint TextBEAR { get; } = MakeFillPaint(PlayerType.BEAR);
 
-        // PScav
-        public static SKPaint BoxPScav { get; } = MakeBoxPaint(220, 220, 50);
-        public static SKPaint TextPScav { get; } = MakeFillPaint(220, 220, 50);
+        public static SKPaint BoxPScav { get; } = MakeBoxPaint(PlayerType.PScav);
+        public static SKPaint TextPScav { get; } = MakeFillPaint(PlayerType.PScav);
 
-        // Teammate
-        public static SKPaint BoxTeammate { get; } = MakeBoxPaint(80, 220, 80);
-        public static SKPaint TextTeammate { get; } = MakeFillPaint(80, 220, 80);
+        public static SKPaint BoxTeammate { get; } = MakeBoxPaint(PlayerType.Teammate);
+        public static SKPaint TextTeammate { get; } = MakeFillPaint(PlayerType.Teammate);
 
-        // AIScav
-        public static SKPaint BoxScav { get; } = MakeBoxPaint(240, 230, 60);
-        public static SKPaint TextScav { get; } = MakeFillPaint(240, 230, 60);
+        public static SKPaint BoxScav { get; } = MakeBoxPaint(PlayerType.AIScav);
+        public static SKPaint TextScav { get; } = MakeFillPaint(PlayerType.AIScav);
 
-        // AIRaider
-        public static SKPaint BoxRaider { get; } = MakeBoxPaint(255, 180, 30);
-        public static SKPaint TextRaider { get; } = MakeFillPaint(255, 180, 30);
+        public static SKPaint BoxRaider { get; } = MakeBoxPaint(PlayerType.AIRaider);
+        public static SKPaint TextRaider { get; } = MakeFillPaint(PlayerType.AIRaider);
 
-        // AIBoss
-        public static SKPaint BoxBoss { get; } = MakeBoxPaint(230, 50, 230);
-        public static SKPaint TextBoss { get; } = MakeFillPaint(230, 50, 230);
+        public static SKPaint BoxBoss { get; } = MakeBoxPaint(PlayerType.AIBoss);
+        public static SKPaint TextBoss { get; } = MakeFillPaint(PlayerType.AIBoss);
 
-        // Special
-        public static SKPaint BoxSpecial { get; } = MakeBoxPaint(255, 100, 160);
-        public static SKPaint TextSpecial { get; } = MakeFillPaint(255, 100, 160);
+        public static SKPaint BoxSpecial { get; } = MakeBoxPaint(PlayerType.SpecialPlayer);
+        public static SKPaint TextSpecial { get; } = MakeFillPaint(PlayerType.SpecialPlayer);
 
-        // Streamer
-        public static SKPaint BoxStreamer { get; } = MakeBoxPaint(170, 120, 255);
-        public static SKPaint TextStreamer { get; } = MakeFillPaint(170, 120, 255);
+        public static SKPaint BoxStreamer { get; } = MakeBoxPaint(PlayerType.Streamer);
+        public static SKPaint TextStreamer { get; } = MakeFillPaint(PlayerType.Streamer);
 
-        // Default / LocalPlayer
-        public static SKPaint BoxDefault { get; } = MakeBoxPaint(200, 200, 200);
-        public static SKPaint TextDefault { get; } = MakeFillPaint(200, 200, 200);
+        public static SKPaint BoxDefault { get; } = MakeBoxPaint(PlayerType.Default);
+        public static SKPaint TextDefault { get; } = MakeFillPaint(PlayerType.Default);
 
         #endregion
 
@@ -277,6 +306,27 @@ namespace eft_dma_radar.Silk.UI.ESP
             IsStroke = false,
             IsAntialias = true,
         };
+
+        /// <summary>Box (stroke) paint for a player type, colored from the shared <see cref="UITheme"/> palette.</summary>
+        private static SKPaint MakeBoxPaint(PlayerType type)
+        {
+            var c = ToSK(UITheme.ForPlayerType(type), 220);
+            return MakeBoxPaint(c.Red, c.Green, c.Blue, c.Alpha);
+        }
+
+        /// <summary>Text (fill) paint for a player type, colored from the shared <see cref="UITheme"/> palette.</summary>
+        private static SKPaint MakeFillPaint(PlayerType type)
+        {
+            var c = ToSK(UITheme.ForPlayerType(type), 255);
+            return MakeFillPaint(c.Red, c.Green, c.Blue, c.Alpha);
+        }
+
+        /// <summary>Convert a normalized ImGui <see cref="Vector4"/> color to an <see cref="SKColor"/> with an explicit alpha.</summary>
+        private static SKColor ToSK(Vector4 v, byte a) => new(
+            (byte)Math.Clamp((int)MathF.Round(v.X * 255f), 0, 255),
+            (byte)Math.Clamp((int)MathF.Round(v.Y * 255f), 0, 255),
+            (byte)Math.Clamp((int)MathF.Round(v.Z * 255f), 0, 255),
+            a);
 
         #endregion
     }

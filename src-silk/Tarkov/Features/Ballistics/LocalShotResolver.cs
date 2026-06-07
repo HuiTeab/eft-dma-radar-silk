@@ -25,6 +25,7 @@ namespace eft_dma_radar.Silk.Tarkov.Features.Ballistics
         private DateTime _lastResolveAttempt = DateTime.MinValue;
         private BallisticsInfo? _cachedBallistics;
         private float _cachedEffectiveVelocity;
+        private readonly FireportResolver _fireport = new();
 
         /// <summary>Cached ammo / weapon name for HUD display.</summary>
         public string? CurrentAmmoShortName { get; private set; }
@@ -41,6 +42,7 @@ namespace eft_dma_radar.Silk.Tarkov.Features.Ballistics
             _cachedBallistics = null;
             _cachedEffectiveVelocity = 0;
             CurrentAmmoShortName = null;
+            _fireport.Reset();
         }
 
         /// <summary>
@@ -51,29 +53,51 @@ namespace eft_dma_radar.Silk.Tarkov.Features.Ballistics
         {
             state = default;
             if (lp is null) return false;
-            if (!lp.IsWeaponInHands) return false;
+            if (!lp.IsWeaponInHands)
+            {
+                Log.WriteRateLimited(AppLogLevel.Info, "lsr.hands", TimeSpan.FromSeconds(2),
+                    "resolve: no firearm in hands", "Ballistics");
+                return false;
+            }
 
             // Resolve / refresh BallisticsInfo if needed (cheap when cached).
             if (!TryUpdateBallisticsCache(lp))
+            {
+                Log.WriteRateLimited(AppLogLevel.Info, "lsr.cache", TimeSpan.FromSeconds(2),
+                    "resolve: weapon/ammo not readable (held item / chamber / magazine / ammo template)", "Ballistics");
                 return false;
+            }
 
             var info = _cachedBallistics;
             if (info is null || !info.IsAmmoValid)
+            {
+                Log.WriteRateLimited(AppLogLevel.Info, "lsr.ammo", TimeSpan.FromSeconds(2),
+                    "resolve: ammo stats invalid", "Ballistics");
                 return false;
+            }
 
-            // Source: prefer eye-level look position, fall back to player position.
-            Vector3 source = lp.HasLookPosition ? lp.LookPosition : lp.Position;
-
-            // Direction from player yaw/pitch (degrees). Game convention: yaw rotates around Y,
-            // pitch tilts up/down. Match Unity's left-handed system used elsewhere in silk.
+            // Eye-look fallback: source = eye-level look position; direction from player yaw/pitch
+            // (degrees). Game convention: yaw rotates around Y, pitch tilts up/down. Match Unity's
+            // left-handed system used elsewhere in silk.
             float yawRad = lp.RotationYaw * (MathF.PI / 180f);
             float pitchRad = lp.RotationPitch * (MathF.PI / 180f);
             float cosP = MathF.Cos(pitchRad);
+            Vector3 source = lp.HasLookPosition ? lp.LookPosition : lp.Position;
             Vector3 forward = new(
                 MathF.Sin(yawRad) * cosP,
                 -MathF.Sin(pitchRad),
                 MathF.Cos(yawRad) * cosP
             );
+
+            // Prefer the real muzzle (fireport) pose so the predicted arc starts at the bore and points
+            // along it — this is what lets the red arc overlay the green live tracer. Falls back to the
+            // eye-look values above when the fireport chain is unreadable (e.g. non-firearm in hands).
+            if ((SilkProgram.Config?.Ballistics?.UseFireportMuzzle ?? true)
+                && _fireport.TryGetMuzzle(lp.Base, _cachedWeapon, out var muzzlePos, out var muzzleFwd))
+            {
+                source = muzzlePos;
+                forward = muzzleFwd;
+            }
 
             // Build a copy of BallisticsInfo with effective velocity (the cached one keeps the
             // ammo's base InitialSpeed so we can show both in the HUD).

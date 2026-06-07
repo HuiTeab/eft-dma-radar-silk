@@ -2,6 +2,7 @@
 // Licensed under the PolyForm Noncommercial License 1.0.0.
 // See LICENSE in the repository root for details.
 
+using eft_dma_radar.Silk.Tarkov.Features.Ballistics;
 using ImGuiNET;
 using Skeleton = eft_dma_radar.Silk.Tarkov.GameWorld.Player.Skeleton;
 
@@ -16,11 +17,11 @@ namespace eft_dma_radar.Silk.UI.Widgets
     {
         private const float LabelLineHeight = 14f;
 
-        // Cached ImGui colors — initialized on first use (ImGui context must exist)
+        // Cached ImGui colors — initialized on first use (ImGui context must exist). Player-type
+        // colors are NOT cached here; they're resolved per-draw via UITheme.ForPlayerType so the
+        // aimview shares one faction palette with the radar and the Skia ESP window.
         private static bool _colorsReady;
-        private static uint _colorTeammate, _colorUsec, _colorBear, _colorScav, _colorRaider;
-        private static uint _colorBoss, _colorPScav, _colorSpecial, _colorStreamer;
-        private static uint _colorCrosshair, _colorBg, _colorDotOutline, _colorShadow, _colorBorder;
+        private static uint _colorCrosshair, _colorBg, _colorDotOutline, _colorShadow, _colorBorder, _colorAimTarget;
         private static uint _colorLoot, _colorLootImportant, _colorLootWishlist, _colorCorpse, _colorContainer;
 
         /// <summary>Whether the aimview widget is open.</summary>
@@ -48,16 +49,8 @@ namespace eft_dma_radar.Silk.UI.Widgets
         private static void EnsureColors()
         {
             if (_colorsReady) return;
-            _colorTeammate   = ImGui.GetColorU32(UITheme.PlayerTeammate);
-            _colorUsec       = ImGui.GetColorU32(UITheme.PlayerUSEC);
-            _colorBear       = ImGui.GetColorU32(UITheme.PlayerBEAR);
-            _colorScav       = ImGui.GetColorU32(UITheme.PlayerDefault);
-            _colorRaider     = ImGui.GetColorU32(UITheme.PlayerAIRaider);
-            _colorBoss       = ImGui.GetColorU32(UITheme.PlayerAIBoss);
-            _colorPScav      = ImGui.GetColorU32(UITheme.PlayerPScav);
-            _colorSpecial    = ImGui.GetColorU32(UITheme.PlayerStreamer);
-            _colorStreamer   = ImGui.GetColorU32(UITheme.PlayerStreamer);
             _colorCrosshair  = ImGui.GetColorU32(UITheme.OverlayCrosshair);
+            _colorAimTarget  = ImGui.GetColorU32(new Vector4(0f, 0.86f, 1f, 1f)); // cyan — ballistics aim target
             _colorBg         = ImGui.GetColorU32(UITheme.OverlayBackground);
             _colorDotOutline = ImGui.GetColorU32(UITheme.OverlayDotOutline);
             _colorShadow     = ImGui.GetColorU32(UITheme.OverlayShadow);
@@ -246,6 +239,10 @@ namespace eft_dma_radar.Silk.UI.Widgets
                         continue;
 
                     uint color = GetPlayerColor(player);
+
+                    // Ballistics aim solver's locked target — recolor it distinctly (cyan).
+                    if (BallisticsFeature.Instance.IsAimTarget(player.Base))
+                        color = _colorAimTarget;
 
                     // Draw skeleton bones in advanced mode — replaces the dot when available
                     bool drewSkeleton = false;
@@ -525,22 +522,12 @@ namespace eft_dma_radar.Silk.UI.Widgets
             PlayerType.AIScav or PlayerType.AIRaider or PlayerType.AIBoss;
 
         /// <summary>
-        /// Returns an ImGui color (packed uint) for the given player type.
+        /// ImGui color (packed uint) for a player type — routed through <see cref="UITheme.ForPlayerType"/>
+        /// so the aimview, the Skia ESP window, and the radar all share one faction palette.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static uint GetPlayerColor(Player player) => player.Type switch
-        {
-            PlayerType.Teammate => _colorTeammate,
-            PlayerType.USEC => _colorUsec,
-            PlayerType.BEAR => _colorBear,
-            PlayerType.AIScav => _colorScav,
-            PlayerType.AIRaider => _colorRaider,
-            PlayerType.AIBoss => _colorBoss,
-            PlayerType.PScav => _colorPScav,
-            PlayerType.SpecialPlayer => _colorSpecial,
-            PlayerType.Streamer => _colorStreamer,
-            _ => _colorUsec,
-        };
+        private static uint GetPlayerColor(Player player) =>
+            ImGui.GetColorU32(UITheme.ForPlayerType(player.Type));
 
         /// <summary>
         /// Draws skeleton bone lines from the pre-computed screen buffer.

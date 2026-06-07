@@ -33,6 +33,13 @@ namespace eft_dma_radar.Silk.UI.Widgets
             bool open = IsOpen;
             ImGui.SetNextWindowSizeConstraints(new Vector2(280, 240), new Vector2(520, 600));
             using var scope = PanelWindow.Begin("Ballistics", ref open, new Vector2(360, 360));
+            if (!open && IsOpen)
+            {
+                // User closed the window via its [x] — turn the HUD setting off so the
+                // Ballistics-tab toggle stays in sync (and it doesn't silently reopen next launch).
+                cfg.ShowDebugHud = false;
+                SilkProgram.Config?.MarkDirty();
+            }
             IsOpen = open;
             if (!scope.Visible) return;
 
@@ -41,7 +48,7 @@ namespace eft_dma_radar.Silk.UI.Widgets
 
             // ── Header / status ───────────────────────────────────────────────
             ImGui.TextColored(cfg.Enabled ? ColorOk : ColorDim,
-                cfg.Enabled ? "Active" : "Disabled (toggle in ESP tab)");
+                cfg.Enabled ? "Active" : "Disabled (toggle in Ballistics tab)");
             ImGui.SameLine();
             ImGui.TextColored(ColorLabel, $"raid={Memory.InRaid}");
             ImGui.Separator();
@@ -98,6 +105,25 @@ namespace eft_dma_radar.Silk.UI.Widgets
                     }
                     ImGui.EndTable();
                 }
+            }
+            ImGui.Spacing();
+
+            // ── Aim solver ────────────────────────────────────────────────────
+            ImGui.TextColored(ColorSection, "Aim solver (holdover + lead)");
+            var aim = feature.LocalAimSolution;
+            if (aim is not AimSolution a || !a.Valid)
+            {
+                ImGui.TextColored(ColorDim, "No target in range.");
+            }
+            else
+            {
+                Row("Target",   feature.AimTargetName ?? "?");
+                Row("Range",    $"{a.Distance:F0} m");
+                Row("Holdover", $"{a.Holdover * 100f:F1} cm");
+                Row("Lead",     $"{a.Lead * 100f:F1} cm");
+                Row("Travel",   $"{a.TravelTime * 1000f:F0} ms");
+                if (!a.Converged)
+                    ImGui.TextColored(ColorWarn, "Solve did not fully converge.");
             }
             ImGui.Spacing();
 

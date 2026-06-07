@@ -580,14 +580,9 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
 
                 var stops = new List<BtrRouteStop>(list.Count);
                 // PathDestination is a scene-placed MonoBehaviour. The standard 6-hop TransformChain
-                // fails because Comp_ObjectClass (+0x20) returns null for these objects.
-                // Use the same short 4-hop chain as SniperFiringZonesManager:
-                //   IL2CPP obj +0x10 → native MonoBehaviour
-                //   +0x58 → native GameObject
-                //   +0x58 → ComponentArray.ArrayBase
-                //   +0x08 → Entry[0].Component = native Transform C++ ptr (= TransformInternal)
-                uint[] shortChain = [0x10, UnityOffsets.Comp_GameObject, UnityOffsets.GO_Components, 0x08];
-
+                // fails because Comp_ObjectClass (+0x20) returns null for these objects, so use the
+                // short scene chain (first component +0x08 is already the native TransformInternal) —
+                // the same one transits and sniper zones use.
                 for (int i = 0; i < list.Count; i++)
                 {
                     var entry = list[i];
@@ -597,7 +592,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
                         continue;
                     }
 
-                    if (!Memory.TryReadPtrChain(entry, shortChain, out var transformInternal, false)
+                    if (!Memory.TryReadPtrChain(entry, UnityOffsets.SceneTransformChain, out var transformInternal, false)
                         || !transformInternal.IsValidVirtualAddress())
                     {
                         Log.Write(AppLogLevel.Info, $"[BTR]   [{i}] transform chain failed for entry=0x{entry:X}");
