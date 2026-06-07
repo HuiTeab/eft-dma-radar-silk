@@ -2,7 +2,6 @@
 // Licensed under the PolyForm Noncommercial License 1.0.0.
 // See LICENSE in the repository root for details.
 
-using eft_dma_radar.Silk.Tarkov.Features.Ballistics;
 using ImGuiNET;
 using Skeleton = eft_dma_radar.Silk.Tarkov.GameWorld.Player.Skeleton;
 
@@ -21,7 +20,7 @@ namespace eft_dma_radar.Silk.UI.Widgets
         // colors are NOT cached here; they're resolved per-draw via UITheme.ForPlayerType so the
         // aimview shares one faction palette with the radar and the Skia ESP window.
         private static bool _colorsReady;
-        private static uint _colorCrosshair, _colorBg, _colorDotOutline, _colorShadow, _colorBorder, _colorAimTarget;
+        private static uint _colorCrosshair, _colorBg, _colorDotOutline, _colorShadow, _colorBorder;
         private static uint _colorLoot, _colorLootImportant, _colorLootWishlist, _colorCorpse, _colorContainer;
 
         /// <summary>Whether the aimview widget is open.</summary>
@@ -50,7 +49,6 @@ namespace eft_dma_radar.Silk.UI.Widgets
         {
             if (_colorsReady) return;
             _colorCrosshair  = ImGui.GetColorU32(UITheme.OverlayCrosshair);
-            _colorAimTarget  = ImGui.GetColorU32(new Vector4(0f, 0.86f, 1f, 1f)); // cyan — ballistics aim target
             _colorBg         = ImGui.GetColorU32(UITheme.OverlayBackground);
             _colorDotOutline = ImGui.GetColorU32(UITheme.OverlayDotOutline);
             _colorShadow     = ImGui.GetColorU32(UITheme.OverlayShadow);
@@ -239,10 +237,6 @@ namespace eft_dma_radar.Silk.UI.Widgets
                         continue;
 
                     uint color = GetPlayerColor(player);
-
-                    // Ballistics aim solver's locked target — recolor it distinctly (cyan).
-                    if (BallisticsFeature.Instance.IsAimTarget(player.Base))
-                        color = _colorAimTarget;
 
                     // Draw skeleton bones in advanced mode — replaces the dot when available
                     bool drewSkeleton = false;

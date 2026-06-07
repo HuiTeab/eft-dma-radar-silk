@@ -409,14 +409,6 @@ namespace eft_dma_radar.Silk.UI.ESP
                     }
                 }
             }
-
-            // Ballistics overlay — predicted trajectory + live shot trails.
-            try { BallisticsRenderer.Draw(canvas); }
-            catch (Exception ex)
-            {
-                Log.WriteRateLimited(AppLogLevel.Warning, "esp_ballistics_draw", TimeSpan.FromSeconds(5),
-                    $"[EspWindow] BallisticsRenderer.Draw failed: {ex.Message}");
-            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -739,22 +731,6 @@ namespace eft_dma_radar.Silk.UI.ESP
             float scale = Config.EspCrosshairScale;
             float cx = size.X * 0.5f;
             float cy = size.Y * 0.5f;
-
-            // Optionally anchor to the fireport aim-line tip (where the barrel points) instead of
-            // screen center. The tip is in viewport space; convert to window space via the same
-            // scale DrawEspEntities applied.
-            var bcfg = Config.Ballistics;
-            if (bcfg is not null && bcfg.Enabled && bcfg.ShowFireportAim && bcfg.CrosshairAtAimpoint
-                && BallisticsRenderer.AimLineTipViewport is SKPoint tip)
-            {
-                int vpW = CameraManager.ViewportWidth;
-                int vpH = CameraManager.ViewportHeight;
-                if (vpW > 0 && vpH > 0)
-                {
-                    cx = tip.X * ((float)size.X / vpW);
-                    cy = tip.Y * ((float)size.Y / vpH);
-                }
-            }
 
             float s = 10f * scale;
             float dot = 3f * scale;

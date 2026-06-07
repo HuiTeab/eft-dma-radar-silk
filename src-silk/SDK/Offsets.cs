@@ -51,22 +51,9 @@ namespace SDK
             public static uint ClientShellingController = 0xA8;
             public static uint LocationId = 0xD0;
             /// <summary>
-            /// <c>generic&lt;&gt; TrajectoryCalculatorPool</c> — game's pool of <see cref="TrajectoryCalculator"/>
-            /// instances. Useful when reading the game's own per-shot trajectory state.
+            /// <c>generic&lt;&gt; TrajectoryCalculatorPool</c> — game's pool of trajectory calculator instances.
             /// </summary>
             public static uint TrajectoryCalculatorPool = 0x160;
-            /// <summary>
-            /// <c>&lt;ClientBallisticCalculator&gt;k__BackingField</c> — present in some game modes
-            /// (often null on standard PMC raids). Prefer <see cref="SharedBallisticsCalculator"/>
-            /// as the primary read target and fall back here only if non-null.
-            /// </summary>
-            public static uint ClientBallisticCalculator = 0x170;
-            /// <summary>
-            /// <c>_sharedBallisticsCalculator</c> — the live <see cref="BallisticsCalculator"/>
-            /// instance used by every fired shot in the raid. Confirmed 0x178 on
-            /// Interchange 2026-05-17 match dump.
-            /// </summary>
-            public static uint SharedBallisticsCalculator = 0x178;
             public static uint LampControllers = 0x188;
             public static uint AllAlivePlayerBridges = 0x190;
             public static uint LootList = 0x198;
@@ -832,91 +819,6 @@ namespace SDK
             public static uint RecoilForceUp = 0x2E4;
             /// <summary><c>float RecoilCamera</c>.</summary>
             public static uint RecoilCamera = 0x2EC;
-        }
-        // ── Ballistics ──────────────────────────────────────────────────────────
-        // Hardcoded fallback offsets sourced from prior-build reverse engineering
-        // (see notes in src-silk/Tarkov/Features/Ballistics/). The IL2CPP dumper
-        // overrides these at runtime via the entries in Il2CppDumperSchema.cs.
-        /// <summary>
-        /// <c>EFT.Ballistics.BallisticsCalculator</c> — per-raid singleton that owns
-        /// every fired <see cref="Shot"/>. Reached via
-        /// <see cref="ClientLocalGameWorld.SharedBallisticsCalculator"/>.
-        /// </summary>
-        public readonly partial struct BallisticsCalculator
-        {
-            /// <summary><c>int FireIndex</c> — increments on every shot fired in the raid.</summary>
-            public static uint FireIndex = 0x20;
-            /// <summary><c>List&lt;Shot&gt; Shots</c> — currently active in-flight bullets.</summary>
-            public static uint Shots = 0x28;
-        }
-        /// <summary>
-        /// <c>EFT.Ballistics.Shot</c> — single in-flight bullet record. Stored in
-        /// <see cref="BallisticsCalculator.Shots"/>. Reads are typically batched
-        /// via scatter for performance.
-        /// </summary>
-        public readonly partial struct Shot
-        {
-            /// <summary><c>float TimeSinceShot</c> — seconds elapsed since fire.</summary>
-            public static uint TimeSinceShot = 0xF0;
-            /// <summary><c>Vector3 StartPosition</c> — world position at fire.</summary>
-            public static uint StartPosition = 0xF4;
-            /// <summary><c>Vector3 CurrentPosition</c> — live world position.</summary>
-            public static uint CurrentPosition = 0x118;
-            /// <summary><c>Vector3 Velocity</c> — live velocity vector (m/s).</summary>
-            public static uint Velocity = 0x124;
-            /// <summary><c>EFT.Player Player</c> — owning player pointer.</summary>
-            public static uint Player = 0x190;
-            /// <summary><c>float InitialSpeed</c> — muzzle velocity (m/s) at fire.</summary>
-            public static uint InitialSpeed = 0x40;
-            /// <summary><c>float Speed</c> — current speed (m/s, after drag).</summary>
-            public static uint Speed = 0x44;
-            /// <summary><c>float BulletMassGram</c>.</summary>
-            public static uint BulletMassGram = 0x48;
-            /// <summary><c>float BulletDiameterMilimeters</c>.</summary>
-            public static uint BulletDiameterMilimeters = 0x4C;
-            /// <summary><c>float BallisticCoefficient</c>.</summary>
-            public static uint BallisticCoefficient = 0x50;
-            /// <summary>
-            /// <c>List&lt;BallisticCoefficientValues&gt; G1</c> — per-Shot copy of the
-            /// game's G1 drag table. Reading this once per ammo type avoids hardcoded tables.
-            /// </summary>
-            public static uint G1 = 0x70;
-        }
-        /// <summary>
-        /// <c>EFT.Ballistics.BallisticCoefficientValues</c> — single entry in the G1 drag
-        /// model lookup table. Stored as List elements (Unity boxed: data starts at +0x10).
-        /// </summary>
-        public readonly partial struct BallisticCoefficientValues
-        {
-            /// <summary><c>float mach</c> — Mach number threshold (velocity / 343 m/s).</summary>
-            public static uint mach = 0x10;
-            /// <summary><c>float ballist</c> — drag coefficient at this Mach.</summary>
-            public static uint ballist = 0x14;
-        }
-        /// <summary>
-        /// <c>EFT.Ballistics.TrajectoryCalculator</c> — game's own physics integrator,
-        /// one per active Shot. Read this only if validating our own simulation drift.
-        /// </summary>
-        public readonly partial struct TrajectoryCalculator
-        {
-            public static uint bulletMassKg = 0x18;
-            public static uint bulletDiameterM = 0x1C;
-            public static uint bulletBallisticCoefficient = 0x24;
-            public static uint bulletArea = 0x28;
-            public static uint bulletSlowdown = 0x2C;
-            public static uint gravity = 0x30;
-            /// <summary><c>TrajectoryInfo Current</c> — current per-step physics state.</summary>
-            public static uint Current = 0x40;
-        }
-        /// <summary>
-        /// <c>EFT.Ballistics.TrajectoryInfo</c> — embedded state inside <see cref="TrajectoryCalculator"/>.
-        /// </summary>
-        public readonly partial struct TrajectoryInfo
-        {
-            public static uint index = 0x0;
-            public static uint time = 0x4;
-            public static uint position = 0x8;
-            public static uint velocity = 0x14;
         }
         public readonly partial struct PlayerBody
         {

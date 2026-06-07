@@ -108,18 +108,6 @@ internal static class HotkeyManager
             "Show/hide the center crosshair overlay on the ESP window",
             static e => { if (e.IsDown) { SilkProgram.Config.EspShowCrosshair = !SilkProgram.Config.EspShowCrosshair; SilkProgram.Config.MarkDirty(); } }),
 
-        // Ballistics
-        new("ToggleAimPoint", "Toggle Aim Point", "Ballistics",
-            "Show the ballistics aim-point (holdover + lead) indicator and target highlight. " +
-            "Toggle flips it on/off; OnKey (hold) shows it only while the key is held.",
-            static e =>
-            {
-                var c = SilkProgram.Config.Ballistics;
-                if (c is null) return;
-                if (ApplyToggle("ToggleAimPoint", e, () => c.DrawAimPoint, v => c.DrawAimPoint = v))
-                    SilkProgram.Config.MarkDirty();
-            }),
-
         // Presets
         new("PresetCycleNext", "Next Preset", "Presets",
             "Cycle to the next radar preset in your saved list, then Custom",

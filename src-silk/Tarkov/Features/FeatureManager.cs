@@ -30,11 +30,6 @@ namespace eft_dma_radar.Silk.Tarkov.Features
             RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<NightVision>).TypeHandle);
             RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<ThermalVision>).TypeHandle);
             RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<NoVisor>).TypeHandle);
-            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<BallisticAdjustment>).TypeHandle);
-
-            // Ballistics is a read-only feature (not a MemWriteFeature). Its own static
-            // ctor registers it with IFeature.AllFeatures so OnRaidStart/End hooks fire.
-            RuntimeHelpers.RunClassConstructor(typeof(eft_dma_radar.Silk.Tarkov.Features.Ballistics.BallisticsFeature).TypeHandle);
 
             Memory.GameStarted += (_, _) => OnGameStarted();
             Memory.GameStopped += (_, _) => OnGameStopped();

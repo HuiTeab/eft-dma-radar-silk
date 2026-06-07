@@ -2,8 +2,6 @@
 // Licensed under the PolyForm Noncommercial License 1.0.0.
 // See LICENSE in the repository root for details.
 
-using eft_dma_radar.Silk.Tarkov.Features.Ballistics;
-
 namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player
 {
     /// <summary>
@@ -24,15 +22,6 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player
             Style = SKPaintStyle.Stroke,
             StrokeCap = SKStrokeCap.Round,
             StrokeJoin = SKStrokeJoin.Round,
-            IsAntialias = true,
-        };
-
-        // Aim-target highlight ring (cyan) — marks the ballistics solver's locked target.
-        private static readonly SKPaint _aimTargetRing = new()
-        {
-            Color = new SKColor(0, 220, 255, 235),
-            StrokeWidth = 2f,
-            Style = SKPaintStyle.Stroke,
             IsAntialias = true,
         };
 
@@ -131,10 +120,6 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player
             }
 
             DrawMarker(canvas, pos, fillPaint, chevronPaint, sin, cos);
-
-            // Aim-solver target highlight — cyan ring around the locked target.
-            if (!IsLocalPlayer && BallisticsFeature.Instance.IsAimTarget(Base))
-                canvas.DrawCircle(pos, DotRadius + 3.5f, _aimTargetRing);
 
             // Aimline — draw after marker so it extends outward
             if (SilkProgram.Config.ShowAimlines && !IsLocalPlayer)

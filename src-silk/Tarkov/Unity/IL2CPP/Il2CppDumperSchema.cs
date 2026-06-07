@@ -97,8 +97,6 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
                 F("<ClientShellingController>k__BackingField", "ClientShellingController"),
                 F("<LocationId>k__BackingField", "LocationId"),
                 F("TrajectoryCalculatorPool"),
-                F("<ClientBallisticCalculator>k__BackingField", "ClientBallisticCalculator"),
-                F("_sharedBallisticsCalculator", "SharedBallisticsCalculator"),
                 F("LootList"),
                 F("RegisteredPlayers"),
                 F("BorderZones"),
@@ -614,53 +612,6 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
             C("WeaponTemplate", [
                 F("Velocity"), F("AllowJam"), F("AllowFeed"), F("AllowMisfire"), F("AllowSlide"),
                 F("RecoilForceBack"), F("RecoilForceUp"), F("RecoilCamera"),
-            ]),
-
-            // ── Ballistics ──────────────────────────────────────────────────────
-            // EFT.Ballistics.BallisticsCalculator (per-raid singleton — owner of all in-flight Shots)
-            C("BallisticsCalculator", [
-                F("FireIndex"),
-                F("Shots"),
-            ]),
-
-            // EFT.Ballistics.Shot (one in-flight bullet)
-            C("Shot", [
-                F("TimeSinceShot"),
-                F("StartPosition"),
-                F("CurrentPosition"),
-                F("Velocity"),
-                F("Player"),
-                F("InitialSpeed"),
-                F("Speed"),
-                F("BulletMassGram"),
-                F("BulletDiameterMilimeters"),
-                F("BallisticCoefficient"),
-                F("G1"),
-            ]),
-
-            // EFT.Ballistics.BallisticCoefficientValues (G1 table entry, valuetype)
-            C("BallisticCoefficientValues", [
-                F("mach"),
-                F("ballist"),
-            ]),
-
-            // EFT.Ballistics.TrajectoryCalculator (game's own integrator; used for validation only)
-            C("TrajectoryCalculator", [
-                F("bulletMassKg"),
-                F("bulletDiameterM"),
-                F("bulletBallisticCoefficient"),
-                F("bulletArea"),
-                F("bulletSlowdown"),
-                F("gravity"),
-                F("Current"),
-            ]),
-
-            // EFT.Ballistics.TrajectoryInfo (valuetype, embedded in TrajectoryCalculator)
-            C("TrajectoryInfo", [
-                F("index"),
-                F("time"),
-                F("position"),
-                F("velocity"),
             ]),
 
             // PlayerBody

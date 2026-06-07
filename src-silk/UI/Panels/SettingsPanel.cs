@@ -20,7 +20,6 @@ namespace eft_dma_radar.Silk.UI.Panels
             ("R", "Presets",     DrawPresetsTab),
             ("P", "Players",     DrawPlayersTab),
             ("E", "ESP",         DrawEspTab),
-            ("B", "Ballistics",  DrawBallisticsTab),
             ("M", "Map",         DrawMapTab),
             ("Q", "Quest Zones", DrawQuestZonesTab),
             ("K", "Hotkeys",     DrawHotkeysTab),

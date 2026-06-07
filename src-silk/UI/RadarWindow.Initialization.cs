@@ -143,7 +143,6 @@ namespace eft_dma_radar.Silk.UI
                 QuestPlannerPanel.IsOpen = Config.ShowQuestPlannerPanel;
                 PlayerHistoryPanel.IsOpen = Config.ShowPlayerHistoryPanel;
                 PlayerWatchlistPanel.IsOpen = Config.ShowPlayerWatchlistPanel;
-                BallisticsDebugWidget.IsOpen = Config.Ballistics?.ShowDebugHud ?? false;
 
                 if (Config.ShowEspWidget)
                     EspWindow.Open();

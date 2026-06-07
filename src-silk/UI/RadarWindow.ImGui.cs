@@ -738,12 +738,6 @@ namespace eft_dma_radar.Silk.UI
             if (AimviewWidget.IsOpen && InRaid && Config.ShowAimview)
                 AimviewWidget.Draw();
 
-            if (BallisticsDebugWidget.IsOpen && InRaid && (Config.Ballistics?.ShowDebugHud ?? false))
-            {
-                RightDock.PlaceNext();
-                BallisticsDebugWidget.Draw();
-            }
-
             // Clears the one-shot resnap flag set by the "Reset Side Panels" hotkey.
             RightDock.EndFrame();
 
