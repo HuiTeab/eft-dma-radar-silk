@@ -53,6 +53,15 @@ namespace eft_dma_radar.Silk.UI.Panels
                 Config.MarkDirty();
             }
 
+            int rtFps = Config.RealtimeTargetFps;
+            if (UIControls.Stepper("Realtime FPS (RT)", ref rtFps,
+                SilkConfig.RealtimeTargetFpsMin, SilkConfig.RealtimeTargetFpsMax, 5,
+                tooltip: "Tick rate of the realtime DMA worker reading player positions (shown as \"RT\" in the stats overlay).\nHigher = smoother movement but more DMA/CPU load. Applies live. Default 125."))
+            {
+                Config.RealtimeTargetFps = rtFps;
+                Config.MarkDirty();
+            }
+
             UIControls.Section("Modes");
 
             bool battleMode = Config.BattleMode;

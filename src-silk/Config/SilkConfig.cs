@@ -165,6 +165,27 @@ namespace eft_dma_radar.Silk.Config
         /// <summary>Target frames per second for the radar window.</summary>
         public int TargetFps { get; set; } = 60;
 
+        /// <summary>Lower bound for <see cref="RealtimeTargetFps"/> (positions get choppy below this).</summary>
+        public const int RealtimeTargetFpsMin = 15;
+
+        /// <summary>Upper bound for <see cref="RealtimeTargetFps"/>.</summary>
+        public const int RealtimeTargetFpsMax = 480;
+
+        /// <summary>
+        /// Target ticks-per-second for the realtime DMA worker that reads player
+        /// positions/rotations — shown as "RT" in the stats overlay. Higher = smoother
+        /// movement but more DMA/CPU load. Default 125 ≈ the historical 8 ms cadence.
+        /// </summary>
+        public int RealtimeTargetFps { get; set; } = 125;
+
+        /// <summary>
+        /// <see cref="RealtimeTargetFps"/> expressed as the realtime worker's sleep interval.
+        /// Defensively clamped so a hand-edited config can never divide by zero.
+        /// </summary>
+        [JsonIgnore]
+        public TimeSpan RealtimeWorkerInterval =>
+            TimeSpan.FromMilliseconds(1000.0 / Math.Clamp(RealtimeTargetFps, RealtimeTargetFpsMin, RealtimeTargetFpsMax));
+
         /// <summary>Radar window width in pixels.</summary>
         public int WindowWidth { get; set; } = 1600;
 
@@ -802,6 +823,7 @@ namespace eft_dma_radar.Silk.Config
         {
             UIScale = Math.Clamp(UIScale, 0.5f, 3.0f);
             TargetFps = Math.Clamp(TargetFps, 30, 300);
+            RealtimeTargetFps = Math.Clamp(RealtimeTargetFps, RealtimeTargetFpsMin, RealtimeTargetFpsMax);
             WindowWidth = Math.Clamp(WindowWidth, 800, 7680);
             WindowHeight = Math.Clamp(WindowHeight, 600, 4320);
 

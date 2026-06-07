@@ -411,7 +411,9 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
             {
                 Name = "Realtime Worker",
                 ThreadPriority = ThreadPriority.AboveNormal,
-                SleepDuration = TimeSpan.FromMilliseconds(8),
+                // Cadence ("RT") is user-configurable; the worker self-adjusts each tick
+                // from Config (see RealtimeWorker_PerformWork). Default 125 fps ≈ 8 ms.
+                SleepDuration = SilkProgram.Config.RealtimeWorkerInterval,
                 SleepMode = WorkerSleepMode.DynamicSleep
             };
             _realtimeWorker.PerformWork += RealtimeWorker_PerformWork;
@@ -576,6 +578,12 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
         private void RealtimeWorker_PerformWork(CancellationToken ct)
         {
             if (_disposed != 0) return;
+
+            // Keep the worker cadence in sync with the configured realtime FPS ("RT").
+            // Done here on the worker thread so the General-tab stepper only writes
+            // Config — no back-reference from the UI into this worker is needed.
+            if (_realtimeWorker is { } rw)
+                rw.SleepDuration = SilkProgram.Config.RealtimeWorkerInterval;
 
             // Fast bail: registration worker already detected local player removal.
             // The stale GameWorld keeps MainPlayer valid for seconds — IsRaidActive()
