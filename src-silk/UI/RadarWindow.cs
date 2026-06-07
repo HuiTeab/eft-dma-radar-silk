@@ -119,11 +119,6 @@ namespace eft_dma_radar.Silk.UI
 
         // ── Cached ImGui strings (rebuilt only when values change) ──────────
 
-        // DrawMainMenuBar: right-aligned "MapName  |  FPS" text
-        private static string _cachedMenuBarMapName = "";
-        private static int _cachedMenuBarFps = -1;
-        private static string _cachedMenuBarRightText = "";
-
         // DrawStatusBar: raid player counts
         private static int _cachedStatusPlayerCount = -1;
         private static int _cachedStatusPmcCount = -1;

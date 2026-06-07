@@ -243,25 +243,6 @@ namespace eft_dma_radar.Silk.UI
             ImGui.EndPopup();
         }
 
-        /// <summary>
-        /// Right-aligned info chip showing current map + FPS. Shares the chip
-        /// language of the bottom status bar so the two bars feel unified.
-        /// </summary>
-        private static void DrawTopBarRightInfo()
-        {
-            string mapName = Memory.InHideout ? "Hideout" : MapManager.Map?.Config?.Name ?? "No Map";
-            if (mapName != _cachedMenuBarMapName || _fps != _cachedMenuBarFps)
-            {
-                _cachedMenuBarMapName = mapName;
-                _cachedMenuBarFps = _fps;
-                _cachedMenuBarRightText = $"{mapName}  ·  {_fps} FPS";
-            }
-
-            float rightTextWidth = ImGui.CalcTextSize(_cachedMenuBarRightText).X;
-            ImGui.SetCursorPosX(ImGui.GetWindowWidth() - rightTextWidth - 14f);
-            ImGui.TextColored(ColorMenuBarRight, _cachedMenuBarRightText);
-        }
-
         private static void DrawMainMenuBar()
         {
             // Demote to "Custom" if the user has drifted from the active built-in preset.
@@ -330,9 +311,6 @@ namespace eft_dma_radar.Silk.UI
 
             // ── More overflow popup ─────────────────────────────────────────
             DrawMorePopup();
-
-            // ── Right-aligned info chip (Map  ·  FPS) ──────────────────
-            DrawTopBarRightInfo();
 
             ImGui.PopStyleVar();
             ImGui.EndMainMenuBar();
