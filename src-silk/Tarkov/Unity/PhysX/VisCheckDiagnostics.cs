@@ -10,7 +10,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// <summary>
     /// Structured, opt-in diagnostic dump for the vischeck pipeline. Produces
     /// JSONL files that can be grep'd, jq'd, or pandas'd offline to answer
-    /// questions the live UI can't surface â€” "what name patterns dominate
+    /// questions the live UI can't surface — "what name patterns dominate
     /// layer 18 on this map?", "which actors blocked the most sightlines in
     /// the last 5 minutes?", "did the SeeThrough verdict for actor X flip
     /// when I added pattern Y?".
@@ -23,18 +23,18 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// <para>
     /// Output formats:
     /// <list type="bullet">
-    ///   <item><c>snapshot-&lt;mapId&gt;-&lt;timestamp&gt;.jsonl</c> â€” one line per
+    ///   <item><c>snapshot-&lt;mapId&gt;-&lt;timestamp&gt;.jsonl</c> — one line per
     ///     <see cref="CachedActor"/>, every field the cache holds.
     ///     One file per build; overwritten only if the same build runs twice
     ///     within the same UTC second (rare).</item>
-    ///   <item><c>tick-&lt;sessionStart&gt;.jsonl</c> â€” one line per
+    ///   <item><c>tick-&lt;sessionStart&gt;.jsonl</c> — one line per
     ///     (tick, player) pair. Rolling file per process session, capped at
     ///     <see cref="TickLogMaxBytes"/> with a numbered rollover.</item>
     /// </list>
     /// </para>
     /// <para>
     /// Performance: tick logging is throttled to <see cref="TickLogIntervalMs"/>
-    /// (default 100 ms = 10 Hz worst case, 8 players = 80 lines/s â‰ˆ 16 KB/s)
+    /// (default 100 ms = 10 Hz worst case, 8 players = 80 lines/s ≈ 16 KB/s)
     /// to keep the file usable for human inspection. Snapshot dump is one-shot
     /// per build and uses a <see cref="StringBuilder"/> + single <c>File.WriteAllText</c>
     /// so the worker thread isn't blocked on per-line IO.
@@ -42,7 +42,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// </summary>
     internal static class VisCheckDiagnostics
     {
-        // â”€â”€ Output directory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Output directory ─────────────────────────────────────────────────
 
         private static readonly string OutputDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -51,7 +51,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <summary>Public for the UI's "Open folder" button + folder-exists check.</summary>
         public static string OutputDirectory => OutputDir;
 
-        // â”€â”€ Toggles (mirrored to SilkConfig) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Toggles (mirrored to SilkConfig) ────────────────────────────────
 
         /// <summary>Dump the full snapshot to a fresh JSONL file every time SceneCache builds or loads.</summary>
         public static bool DumpSnapshotOnBuild { get; set; } = false;
@@ -76,13 +76,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             cfg.VisCheckDiagLogClassifier  = LogClassifierChanges;
         }
 
-        // â”€â”€ Tick log state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Tick log state ───────────────────────────────────────────────────
 
         // 10 Hz cap on tick records: the live UI already runs at 60 Hz, the log
-        // is for trend analysis after the fact â€” finer granularity just bloats
+        // is for trend analysis after the fact — finer granularity just bloats
         // the file without adding insight.
         private const int  TickLogIntervalMs = 100;
-        private const long TickLogMaxBytes   = 50L * 1024 * 1024; // 50 MB â†’ roll over
+        private const long TickLogMaxBytes   = 50L * 1024 * 1024; // 50 MB → roll over
 
         private static readonly Lock _tickLogLock = new();
         private static StreamWriter? _tickLogWriter;
@@ -90,20 +90,20 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static long          _tickLogBytes;
         private static long          _lastTickLogMs;
 
-        // â”€â”€ Snapshot dump state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Snapshot dump state ──────────────────────────────────────────────
 
-        // Path of the most recent successful snapshot dump â€” surfaced in the UI
+        // Path of the most recent successful snapshot dump — surfaced in the UI
         // so the user can confirm "yes, the file landed where I expected".
         private static string? _lastSnapshotDumpPath;
         public  static string? LastSnapshotDumpPath => _lastSnapshotDumpPath;
         public  static string? CurrentTickLogPath   => _tickLogPath;
 
-        // â”€â”€ Hook: SceneCache build finished â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Hook: SceneCache build finished ──────────────────────────────────
 
         /// <summary>
         /// Called by <see cref="SceneCache"/> immediately after a fresh
         /// snapshot is published. No-op unless <see cref="DumpSnapshotOnBuild"/>
-        /// is on. Runs on the cache build task; never throws â€” diagnostic
+        /// is on. Runs on the cache build task; never throws — diagnostic
         /// failures are logged but don't bubble up.
         /// </summary>
         public static void OnSnapshotBuilt(SceneSnapshot snap)
@@ -146,7 +146,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ Hook: VisibilityWorker tick finished â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Hook: VisibilityWorker tick finished ─────────────────────────────
 
         /// <summary>
         /// Called by <see cref="VisibilityWorker"/> at the end of every tick
@@ -196,7 +196,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ Hook: classifier rules edited â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Hook: classifier rules edited ────────────────────────────────────
 
         /// <summary>
         /// Called by <see cref="VisibilityClassifier"/> after a rule edit +
@@ -235,7 +235,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ Misc UI helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Misc UI helpers ──────────────────────────────────────────────────
 
         /// <summary>
         /// Opens the diagnostic folder in Explorer (creating it first if it
@@ -281,7 +281,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ Snapshot dump implementation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Snapshot dump implementation ─────────────────────────────────────
 
         private static string DumpSnapshotInternal(SceneSnapshot snap, string reason)
         {
@@ -290,12 +290,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             var ts    = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
             var path  = Path.Combine(OutputDir, $"snapshot-{mapId}-{ts}.jsonl");
 
-            // Buffer the whole file in memory then single-shot write â€” avoids
+            // Buffer the whole file in memory then single-shot write — avoids
             // 10k tiny IO calls and keeps the dump atomic (no half-written
             // file if the process exits mid-dump).
             var sb = new StringBuilder(snap.Actors.Length * 256);
 
-            // Header line â€” overall snapshot metadata, identified by "_type":"header"
+            // Header line — overall snapshot metadata, identified by "_type":"header"
             // so consumers can ignore it when streaming actor records.
             sb.Append('{');
             AppendField(sb, "_type", "header");                                                       AppendSep(sb);
@@ -325,7 +325,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         private static void AppendActorJson(StringBuilder sb, int idx, CachedActor a, SceneSnapshot snap)
         {
-            // Derived AABB extents â€” pre-compute here so consumers don't have
+            // Derived AABB extents — pre-compute here so consumers don't have
             // to re-derive in their analysis pipeline. Saves a column-math
             // pass when filtering "show me actors with extent > 100 m".
             var ext = a.WorldAabbMax - a.WorldAabbMin;
@@ -350,7 +350,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             AppendField(sb, "cvxIdx", a.ConvexMeshIndex);                                             AppendSep(sb);
             AppendField(sb, "hfIdx", a.HeightFieldIndex);                                             AppendSep(sb);
             AppendField(sb, "seeThru", a.IsSeeThrough);                                               AppendSep(sb);
-            // Classifier reason: only worth computing for see-through actors â€”
+            // Classifier reason: only worth computing for see-through actors —
             // for blockers there's no rule that fired and "Explain" returns
             // an empty string anyway.
             string reason = a.IsSeeThrough
@@ -360,7 +360,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             sb.Append('}');
         }
 
-        // â”€â”€ Tick log implementation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Tick log implementation ──────────────────────────────────────────
 
         private static void EnsureTickLogOpen()
         {
@@ -398,7 +398,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             AppendField(sb, "us", FormatFloat(r.TimeUs));                                             AppendSep(sb);
             AppendField(sb, "blkIdx", r.BlockerActorIdx);
 
-            // Blocker details â€” pulled from the snapshot at log time so the
+            // Blocker details — pulled from the snapshot at log time so the
             // consumer doesn't have to cross-reference snapshot dumps to know
             // what hit a player. Cheap (one indexed lookup per record).
             if (r.BlockerActorIdx >= 0 && r.BlockerActorIdx < snap.Actors.Length)
@@ -415,7 +415,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return sb.ToString();
         }
 
-        // â”€â”€ Tiny hand-rolled JSON emitter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Tiny hand-rolled JSON emitter ────────────────────────────────────
         //
         // System.Text.Json works fine but it allocates a JsonWriter per call
         // and adds 200+ bytes of overhead to every actor record. For a 10k-actor
@@ -476,7 +476,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         private static void AppendEscaped(StringBuilder sb, string s)
         {
-            // Minimal JSON string escaping â€” name fields come from Unity
+            // Minimal JSON string escaping — name fields come from Unity
             // GameObject names which are usually printable ASCII, but a
             // backslash, quote, or control char does occasionally appear
             // (and would otherwise break JSONL parsers).
@@ -498,7 +498,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // Fixed-format with 4 decimals â€” short enough for 10k-actor dumps,
+        // Fixed-format with 4 decimals — short enough for 10k-actor dumps,
         // precise enough for world-space metres / quaternions.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static string FormatFloat(float v)

@@ -6,11 +6,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// <summary>
     /// Comprehensive visibility-check debug overlay.
     /// <para>
-    /// Left column: live monitoring â€” cache state, snapshot stats, worker stats,
+    /// Left column: live monitoring — cache state, snapshot stats, worker stats,
     /// per-player check results with filtering and optional bone-mask / blocker columns.
     /// </para>
     /// <para>
-    /// Right column: tuning controls â€” per-bone ray toggles, max distance,
+    /// Right column: tuning controls — per-bone ray toggles, max distance,
     /// the full <see cref="ClassifierRulesWidget"/> (layer mask + name patterns),
     /// and action buttons.
     /// </para>
@@ -21,13 +21,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         public static bool IsVisible { get; set; }
         public static void Toggle() => IsVisible = !IsVisible;
 
-        // â”€â”€ Per-player table options â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Per-player table options ─────────────────────────────────────────
 
         private static int  _playerFilter = 0;   // 0=All  1=Visible  2=Blocked
         private static bool _colBones     = true;
         private static bool _colBlocker   = true;
 
-        // â”€â”€ Top blockers state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Top blockers state ───────────────────────────────────────────────
         // Persists across frames so the user can keep a popup open while
         // looking at the table. Cleared when the popup closes.
         private static string _blockerAddPopupName     = "";
@@ -35,7 +35,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static string _blockerAddStatus        = "";
         private static long   _blockerAddStatusMs;
 
-        // â”€â”€ Top see-through state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Top see-through state ────────────────────────────────────────────
         // Same shape as the blocker popup state but for the mirror workflow:
         // user is browsing see-through actors and wants to promote one to a
         // force-blocker rule. Separate state vars so the two popups can't
@@ -47,14 +47,14 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         // Cached aggregation of see-through actors from the current snapshot.
         // Unlike Top Blockers (live hit window), see-through actors aren't
-        // tested per-tick so there's no natural live signal â€” we just count
+        // tested per-tick so there's no natural live signal — we just count
         // occurrences in the snapshot. ReferenceEquals(snap) gate avoids
         // re-aggregating 7k+ names every UI frame.
         private static SceneSnapshot? _seeThruSnapshotRef;
         private static List<(string Name, int Count, int FirstIdx)> _seeThruByName = new();
         private static string _seeThruFilter = "";
 
-        // â”€â”€ Frame entry point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Frame entry point ────────────────────────────────────────────────
 
         public static void Draw()
         {
@@ -99,7 +99,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ Monitor column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Monitor column ────────────────────────────────────────────────────
 
         private static void DrawMonitorColumn()
         {
@@ -214,16 +214,16 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 : "";
             ImGui.Text(
                 $"checks={stats.Checks}  blocked={stats.Blocked}{pct}  " +
-                $"avg={stats.AvgUs:F1}Î¼s  max={stats.MaxUs:F1}Î¼s{ageStr}");
+                $"avg={stats.AvgUs:F1}μs  max={stats.MaxUs:F1}μs{ageStr}");
             ImGui.Text(
                 $"eye: ({stats.EyePos.X:F1}, {stats.EyePos.Y:F1}, {stats.EyePos.Z:F1})  " +
                 $"max-dist={VisibilityWorker.MaxRayDistance:F0}m");
         }
 
         /// <summary>
-        /// Aggregated "what's actually blocking my sightlines right now" view â€”
+        /// Aggregated "what's actually blocking my sightlines right now" view —
         /// the single most useful surface for tuning classifier rules. Each
-        /// row is one actor that's caused â‰¥1 block in the rolling 30 s window;
+        /// row is one actor that's caused ≥1 block in the rolling 30 s window;
         /// the +SeeThru button opens a smart-pattern picker so the user can
         /// promote the actor to a see-through rule without typing a substring
         /// blind from the per-player table.
@@ -246,7 +246,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
             if (top.Count == 0)
             {
-                ImGui.TextDisabled("  (nothing has blocked yet â€” play a few seconds with worker enabled)");
+                ImGui.TextDisabled("  (nothing has blocked yet — play a few seconds with worker enabled)");
                 MaybeDrawBlockerPopup();
                 return;
             }
@@ -254,14 +254,14 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             var snap = SceneCache.Snapshot;
             long now = Environment.TickCount64;
 
-            // Status line â€” confirmation of the most recent rule add.
+            // Status line — confirmation of the most recent rule add.
             if (!string.IsNullOrEmpty(_blockerAddStatus) && now - _blockerAddStatusMs < 4000)
             {
                 ImGui.TextColored(new Vector4(0.40f, 0.85f, 0.40f, 1f), _blockerAddStatus);
             }
 
             // Fixed table height so the Per-Player table below stays usable.
-            // 6 rows visible at standard ImGui line height â€” scroll for more.
+            // 6 rows visible at standard ImGui line height — scroll for more.
             const float TableHeight = 140f;
             if (ImGui.BeginTable("##topblk", 5,
                     ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders |
@@ -329,7 +329,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         /// <summary>
         /// Modal pattern-picker popup. Shows three candidate substrings derived
-        /// from the actor's name â€” full / stripped / prefix â€” each with a live
+        /// from the actor's name — full / stripped / prefix — each with a live
         /// preview of how many actors the pattern would match and how many of
         /// those are currently blockers. The user picks one (or types a custom
         /// substring) and commits.
@@ -347,7 +347,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 var (stripped, prefix) = SuggestPatterns(_blockerAddPopupName);
                 var snap = SceneCache.Snapshot;
 
-                ImGui.TextDisabled("Pick a pattern (broader â†’ more matches):");
+                ImGui.TextDisabled("Pick a pattern (broader → more matches):");
 
                 DrawPatternCandidate("Full name",   _blockerAddPopupName, snap);
                 if (!string.IsNullOrEmpty(stripped) && stripped != _blockerAddPopupName)
@@ -362,7 +362,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 int custMatch = string.IsNullOrEmpty(_blockerCustomPattern)
                     ? 0
                     : CountMatches(snap, _blockerCustomPattern);
-                ImGui.Text($"  â†’ {custMatch} actor(s) match");
+                ImGui.Text($"  → {custMatch} actor(s) match");
                 ImGui.SameLine();
                 if (ImGui.Button("Add custom") && !string.IsNullOrWhiteSpace(_blockerCustomPattern))
                 {
@@ -391,7 +391,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             (int matches, int blockers) = CountMatchesWithBlockerSplit(snap, pattern);
 
             ImGui.TextUnformatted($"  {label}: \"{pattern}\"");
-            ImGui.TextDisabled($"     â†’ {matches} match, {blockers} currently blocker");
+            ImGui.TextDisabled($"     → {matches} match, {blockers} currently blocker");
             ImGui.SameLine();
             if (ImGui.SmallButton("Apply"))
             {
@@ -405,16 +405,16 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// Heuristic pattern derivation from an actor name. Returns two
         /// candidate substrings:
         /// <list type="bullet">
-        ///   <item><c>stripped</c> â€” the name with the last "_NN" or trailing
+        ///   <item><c>stripped</c> — the name with the last "_NN" or trailing
         ///     digit run removed. Catches instance siblings
         ///     ("Wall_concrete_01", "Wall_concrete_02", ...).</item>
-        ///   <item><c>prefix</c> â€” everything up to the first separator. The
+        ///   <item><c>prefix</c> — everything up to the first separator. The
         ///     broadest sensible filter; matches the bucketing logic in
         ///     <see cref="CacheViewWindow"/>.</item>
         /// </list>
         /// Either may be the empty string when the input is degenerate
-        /// (single token, all digits, etc.) â€” the caller suppresses degenerate
-        /// rows so the popup never shows a useless "  â†’ 0 match" entry.
+        /// (single token, all digits, etc.) — the caller suppresses degenerate
+        /// rows so the popup never shows a useless "  → 0 match" entry.
         /// </summary>
         private static (string stripped, string prefix) SuggestPatterns(string name)
         {
@@ -431,7 +431,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
             if (last > 0 && last < stripped.Length) stripped = stripped.Substring(0, last);
 
-            // Prefix bucket â€” first underscore / space / paren / digit run.
+            // Prefix bucket — first underscore / space / paren / digit run.
             string prefix = "";
             for (int i = 0; i < name.Length; i++)
             {
@@ -486,14 +486,14 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         {
             if (string.IsNullOrWhiteSpace(pattern)) return;
 
-            // Avoid silently appending duplicates â€” a no-op duplicate would
+            // Avoid silently appending duplicates — a no-op duplicate would
             // confuse the impact preview (the user wonders why nothing changed).
             var current = VisibilityClassifier.GlobalNamePatterns;
             foreach (var p in current)
             {
                 if (string.Equals(p, pattern, StringComparison.OrdinalIgnoreCase))
                 {
-                    _blockerAddStatus   = $"Pattern \"{pattern}\" already exists â€” no change.";
+                    _blockerAddStatus   = $"Pattern \"{pattern}\" already exists — no change.";
                     _blockerAddStatusMs = Environment.TickCount64;
                     return;
                 }
@@ -508,12 +508,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             VisibilityClassifier.SaveToConfig(SilkProgram.Config);
             SilkProgram.Config.Save();
 
-            _blockerAddStatus   = $"Added \"{pattern}\" â€” see-through rules now {next.Length}.";
+            _blockerAddStatus   = $"Added \"{pattern}\" — see-through rules now {next.Length}.";
             _blockerAddStatusMs = Environment.TickCount64;
         }
 
         /// <summary>
-        /// Mirror of <see cref="CommitPattern"/> for the force-blocker side â€”
+        /// Mirror of <see cref="CommitPattern"/> for the force-blocker side —
         /// appends to <see cref="VisibilityClassifier.GlobalBlockerPatterns"/>
         /// instead of <c>GlobalNamePatterns</c>. Separate status field so the
         /// two parallel popups can both show their own feedback without
@@ -527,7 +527,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             {
                 if (string.Equals(p, pattern, StringComparison.OrdinalIgnoreCase))
                 {
-                    _seeThruAddStatus   = $"Pattern \"{pattern}\" already exists â€” no change.";
+                    _seeThruAddStatus   = $"Pattern \"{pattern}\" already exists — no change.";
                     _seeThruAddStatusMs = Environment.TickCount64;
                     return;
                 }
@@ -542,7 +542,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             VisibilityClassifier.SaveToConfig(SilkProgram.Config);
             SilkProgram.Config.Save();
 
-            _seeThruAddStatus   = $"Added \"{pattern}\" â€” force-blocker rules now {next.Length}.";
+            _seeThruAddStatus   = $"Added \"{pattern}\" — force-blocker rules now {next.Length}.";
             _seeThruAddStatusMs = Environment.TickCount64;
         }
 
@@ -551,9 +551,9 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// promote a misclassified actor to a force-blocker rule. Mirror of
         /// <see cref="DrawTopBlockersBlock"/>, but the aggregation is over the
         /// snapshot (see-through actors don't get hit per-tick, so there's no
-        /// live frequency signal to sort by â€” instead we sort by occurrence
+        /// live frequency signal to sort by — instead we sort by occurrence
         /// count in the snapshot, which still surfaces "this name appears
-        /// 384 times â€” almost certainly a real prop group" first).
+        /// 384 times — almost certainly a real prop group" first).
         /// </summary>
         private static void DrawTopSeeThroughBlock()
         {
@@ -584,7 +584,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
             float fw = ImGui.GetContentRegionAvail().X;
             ImGui.SetNextItemWidth(fw);
-            ImGui.InputTextWithHint("##stf", "filter namesâ€¦", ref _seeThruFilter, 64);
+            ImGui.InputTextWithHint("##stf", "filter names…", ref _seeThruFilter, 64);
 
             const float TableHeight = 140f;
             if (ImGui.BeginTable("##topst", 4,
@@ -667,7 +667,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 var (stripped, prefix) = SuggestPatterns(_seeThruAddPopupName);
                 var snap = SceneCache.Snapshot;
 
-                ImGui.TextDisabled("Pick a pattern (broader â†’ flips more actors):");
+                ImGui.TextDisabled("Pick a pattern (broader → flips more actors):");
 
                 DrawBlockerCandidate("Full name",   _seeThruAddPopupName, snap);
                 if (!string.IsNullOrEmpty(stripped) && stripped != _seeThruAddPopupName)
@@ -685,7 +685,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 int custSee = string.IsNullOrEmpty(_seeThruCustomPattern)
                     ? 0
                     : CountMatchesSeeThrough(snap, _seeThruCustomPattern);
-                ImGui.Text($"  â†’ {custMatch} actor(s) match, {custSee} currently see-through");
+                ImGui.Text($"  → {custMatch} actor(s) match, {custSee} currently see-through");
                 ImGui.SameLine();
                 if (ImGui.Button("Add custom") && !string.IsNullOrWhiteSpace(_seeThruCustomPattern))
                 {
@@ -715,7 +715,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             int wouldFlip = CountMatchesSeeThrough(snap, pattern);
 
             ImGui.TextUnformatted($"  {label}: \"{pattern}\"");
-            ImGui.TextDisabled($"     â†’ {matches} match, {wouldFlip} currently see-through (would flip back to blocker)");
+            ImGui.TextDisabled($"     → {matches} match, {wouldFlip} currently see-through (would flip back to blocker)");
             ImGui.SameLine();
             if (ImGui.SmallButton("Apply"))
             {
@@ -742,7 +742,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <summary>
         /// Rebuilds <see cref="_seeThruByName"/> when the snapshot ref changes.
         /// Groups by exact actor name so the user sees natural clusters
-        /// ("collider_mesh" Ã— 384, "Glass" Ã— 129, etc.) â€” same shape as the
+        /// ("collider_mesh" × 384, "Glass" × 129, etc.) — same shape as the
         /// existing Cache View bucket panel but simpler (no bucket extraction
         /// since the natural unit here is the full name).
         /// </summary>
@@ -772,7 +772,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         private static void DrawPerPlayerBlock()
         {
-            // â”€â”€ Filter + column toggles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Filter + column toggles ───────────────────────────────────────
             ImGui.Text("Players:");
             ImGui.SameLine();
             ImGui.RadioButton("All",     ref _playerFilter, 0); ImGui.SameLine();
@@ -788,12 +788,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             var rows = VisibilityWorker.LastPerPlayer;
             if (rows.Count == 0)
             {
-                ImGui.TextDisabled("  (no checks yet â€” start the worker and build the cache)");
+                ImGui.TextDisabled("  (no checks yet — start the worker and build the cache)");
                 return;
             }
 
             // Dynamic column count based on active toggles.
-            int nCols = 4; // Name | Dist | Status | Î¼s â€” always visible
+            int nCols = 4; // Name | Dist | Status | μs — always visible
             if (_colBones)   nCols++;
             if (_colBlocker) nCols++;
 
@@ -812,7 +812,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     ImGui.TableSetupColumn("Bones",   ImGuiTableColumnFlags.WidthFixed, 50f);
                 if (_colBlocker)
                     ImGui.TableSetupColumn("Blocker", ImGuiTableColumnFlags.WidthStretch, 1.0f);
-                ImGui.TableSetupColumn("Î¼s",      ImGuiTableColumnFlags.WidthFixed,   64f);
+                ImGui.TableSetupColumn("μs",      ImGuiTableColumnFlags.WidthFixed,   64f);
                 ImGui.TableSetupScrollFreeze(0, 1);
                 ImGui.TableHeadersRow();
 
@@ -868,7 +868,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                             string nm = string.IsNullOrEmpty(bl.Name)
                                 ? $"({bl.GeometryType})"
                                 : bl.Name;
-                            if (nm.Length > 38) nm = string.Concat(nm.AsSpan(0, 37), "â€¦");
+                            if (nm.Length > 38) nm = string.Concat(nm.AsSpan(0, 37), "…");
                             ImGui.TextUnformatted(nm);
                             if (ImGui.IsItemHovered())
                                 ImGui.SetTooltip(
@@ -878,7 +878,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                         }
                         else
                         {
-                            ImGui.TextDisabled("â€”");
+                            ImGui.TextDisabled("—");
                         }
                     }
 
@@ -890,7 +890,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ Settings column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Settings column ───────────────────────────────────────────────────
 
         private static void DrawSettingsColumn()
         {
@@ -951,13 +951,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip(
                     "After every classifier rule change + reclassification, log\n" +
-                    "the new rules + how many actors flipped see-through â†” blocker.\n" +
+                    "the new rules + how many actors flipped see-through ↔ blocker.\n" +
                     "Use to verify a new name pattern actually moved what you expected.");
 
-            // VmmException tracer â€” answers "which read is throwing the
+            // VmmException tracer — answers "which read is throwing the
             // first-chance exception I see in the debugger?". Logs each
             // unique call site once with a full stack trace (capped at 200
-            // sites to self-limit). Requires restart to take effect â€” the
+            // sites to self-limit). Requires restart to take effect — the
             // FirstChanceException hook gets installed once at startup.
             bool traceDma = SilkProgram.Config.TraceDmaExceptions;
             if (ImGui.Checkbox("Trace DMA exceptions##diag", ref traceDma))
@@ -977,7 +977,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     "Takes effect on next launch if turned on before startup;\n" +
                     "live-toggle works once the hook is installed.");
 
-            // Action row â€” dump on demand + folder open. Disabled when there's
+            // Action row — dump on demand + folder open. Disabled when there's
             // no live snapshot to dump.
             bool hasSnap = SceneCache.Snapshot.Actors.Length > 0;
             ImGui.BeginDisabled(!hasSnap);
@@ -993,7 +993,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip(VisCheckDiagnostics.OutputDirectory);
 
-            // Last-dump path readout â€” confirms the file landed and gives the
+            // Last-dump path readout — confirms the file landed and gives the
             // user something to copy/paste into their analysis tool.
             var lastDump = VisCheckDiagnostics.LastSnapshotDumpPath;
             if (!string.IsNullOrEmpty(lastDump))
@@ -1089,7 +1089,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (!hasmatch) ImGui.TextDisabled("(no active match)");
         }
 
-        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Helpers ───────────────────────────────────────────────────────────
 
         private static void SaveWorkerCfg()
         {

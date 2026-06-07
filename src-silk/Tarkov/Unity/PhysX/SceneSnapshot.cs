@@ -9,7 +9,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     ///     Multiple visibility worker frames can read this struct concurrently
     ///     with zero locking.</item>
     ///   <item><see cref="WorldAabbMin"/>/<see cref="WorldAabbMax"/> are
-    ///     pre-computed and over-conservative â€” never smaller than the actual
+    ///     pre-computed and over-conservative — never smaller than the actual
     ///     world-space extent. The raycaster uses this AABB as a cull gate
     ///     before doing the expensive geometry-specific test.</item>
     /// </list>
@@ -20,9 +20,9 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// Primitive actors (Sphere / Capsule / Box) carry their parameters inline
     /// via <see cref="PrimitiveSize"/>:
     /// <list type="bullet">
-    ///   <item>Sphere   â€” <c>PrimitiveSize.X</c> = radius</item>
-    ///   <item>Capsule  â€” <c>PrimitiveSize.X</c> = radius, <c>.Y</c> = half-height</item>
-    ///   <item>Box      â€” <c>PrimitiveSize</c> = half-extents (x, y, z)</item>
+    ///   <item>Sphere   — <c>PrimitiveSize.X</c> = radius</item>
+    ///   <item>Capsule  — <c>PrimitiveSize.X</c> = radius, <c>.Y</c> = half-height</item>
+    ///   <item>Box      — <c>PrimitiveSize</c> = half-extents (x, y, z)</item>
     /// </list>
     /// </para>
     /// </summary>
@@ -47,7 +47,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         /// <summary>
         /// Source pointer (NpRigidStatic / NpRigidDynamic). Stored for diagnostic
-        /// logs only â€” the raycaster never reads it.
+        /// logs only — the raycaster never reads it.
         /// </summary>
         public ulong ActorBase { get; init; } = 0;
 
@@ -71,10 +71,10 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <summary>
         /// The actor's Unity <c>GameObject.name</c> if reachable, otherwise the
         /// empty string. Read at ingest via the chain
-        /// <c>NpShape+0x10 â†’ NativeCollider+0x38 â†’ NativeGameObject+0x68 (NamePtr â†’ C-string)</c>.
+        /// <c>NpShape+0x10 → NativeCollider+0x38 → NativeGameObject+0x68 (NamePtr → C-string)</c>.
         /// Unity 6 layout: <c>Comp_GameObject=0x38</c>, <c>GO_Name=0x68</c>
-        /// (the +0x20 shift from Unity 2022). See <c>UNITY_ENGINE_CHANGES.md</c> Â§2.
-        /// Used for diagnostic logs and the Cache View tooltip â€” gives us
+        /// (the +0x20 shift from Unity 2022). See <c>UNITY_ENGINE_CHANGES.md</c> §2.
+        /// Used for diagnostic logs and the Cache View tooltip — gives us
         /// human-readable identifiers like <c>"PlayerCollider_Body_01"</c> or
         /// <c>"Wall_Concrete_LongSection"</c> instead of just layer categories.
         /// </summary>
@@ -94,7 +94,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         public int UnityLayer { get; init; } = -1;
 
         /// <summary>
-        /// Pre-classified see-through verdict â€” the raycaster's Gate 0 reads
+        /// Pre-classified see-through verdict — the raycaster's Gate 0 reads
         /// this as a single bool to decide whether to skip the actor. Computed
         /// by <see cref="VisibilityClassifier.Classify"/> at snapshot build /
         /// load time. Combines the historical layer-mask rule
@@ -113,7 +113,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     }
 
     /// <summary>
-    /// A cooked triangle mesh â€” vertices in mesh-local space plus a flat
+    /// A cooked triangle mesh — vertices in mesh-local space plus a flat
     /// 32-bit index buffer (always normalized to <c>int</c> at ingest, even
     /// when the source stored 16-bit indices).
     /// <para>
@@ -134,13 +134,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     }
 
     /// <summary>
-    /// A cooked convex mesh â€” a closed convex polyhedron defined by an array
+    /// A cooked convex mesh — a closed convex polyhedron defined by an array
     /// of <see cref="Vertices"/> and an array of <see cref="PolygonPlanes"/>
     /// (one outward-facing plane per face).
     /// <para>
     /// PhysX stores per-face vertex indices too, but the polytope slab
-    /// raycast only needs the plane equations (MÃ¶ller-style slab test in
-    /// half-space form) â€” so we drop the index buffer at ingest and keep
+    /// raycast only needs the plane equations (Möller-style slab test in
+    /// half-space form) — so we drop the index buffer at ingest and keep
     /// memory tight. Vertices are kept for the Cache View wireframe and
     /// for any future geometry-dependent feature.
     /// </para>
@@ -150,9 +150,9 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         public required Vector3[] Vertices     { get; init; }
         /// <summary>
         /// One Vector4 per polygon, packed as <c>(normal.X, normal.Y, normal.Z, d)</c>
-        /// where the plane equation is <c>nÂ·p + d = 0</c> (PhysX
+        /// where the plane equation is <c>n·p + d = 0</c> (PhysX
         /// <c>PxPlane</c> convention; outward-facing normal, polyhedron
-        /// interior is <c>nÂ·p + d &lt; 0</c>).
+        /// interior is <c>n·p + d &lt; 0</c>).
         /// </summary>
         public required Vector4[] PolygonPlanes { get; init; }
         public required int       PolygonCount  { get; init; }
@@ -164,12 +164,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     }
 
     /// <summary>
-    /// A cooked height field â€” a row-major grid of 16-bit signed heights.
+    /// A cooked height field — a row-major grid of 16-bit signed heights.
     /// World position of sample <c>(row, col)</c> = local
     /// <c>(col*ColumnScale, sample*HeightScale, row*RowScale)</c>, then the
     /// owning actor's <see cref="CachedActor.WorldTransform"/>.
     /// <para>
-    /// We keep samples as the raw <c>short[]</c> â€” never widen to float â€” so
+    /// We keep samples as the raw <c>short[]</c> — never widen to float — so
     /// memory stays bounded even for large maps.
     /// </para>
     /// </summary>
@@ -197,13 +197,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
     /// <summary>
     /// Immutable snapshot of the PhysX static-world geometry needed to answer
-    /// "is point B visible from point A?" â€” produced by the scene cache, consumed
+    /// "is point B visible from point A?" — produced by the scene cache, consumed
     /// by the visibility worker, read-only for everyone else.
     /// <para>
     /// Atomic swap: the cache builds a fresh <see cref="SceneSnapshot"/>, then
     /// publishes it with a single reference write. Readers grab a reference,
     /// hold it for their frame, and may keep reading even after a new snapshot
-    /// replaces this one â€” until they drop the reference, the snapshot's
+    /// replaces this one — until they drop the reference, the snapshot's
     /// arrays remain valid.
     /// </para>
     /// </summary>

@@ -15,11 +15,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// rays per enemy (head / spine3 / pelvis), and writes the aggregated
     /// result into <see cref="Player.IsVisible"/> + <see cref="Player.LastVisCheckTickMs"/>.
     /// A player is reported visible if <em>any</em> of the three bones is
-    /// reachable from the local eye â€” this catches the common "head behind
+    /// reachable from the local eye — this catches the common "head behind
     /// cover, torso exposed" case that a single-ray head check misses.
     /// <para>
     /// Lock-free reader of the cache. Holds the snapshot reference for the
-    /// duration of a single tick â€” any new snapshot published mid-tick is
+    /// duration of a single tick — any new snapshot published mid-tick is
     /// picked up on the next iteration.
     /// </para>
     /// <para>
@@ -29,10 +29,10 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// </summary>
     internal static class VisibilityWorker
     {
-        // â”€â”€ Configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Configuration ────────────────────────────────────────────────────
 
         /// <summary>
-        /// Sleep between visibility ticks. 16 ms = ~60 Hz â€” fast enough for any
+        /// Sleep between visibility ticks. 16 ms = ~60 Hz — fast enough for any
         /// UI refresh, slow enough not to compete with the realtime worker.
         /// </summary>
         private static readonly TimeSpan TickInterval = TimeSpan.FromMilliseconds(16);
@@ -40,7 +40,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <summary>Max ray length. Players past this distance default to "visible" to avoid wasting raycasts.</summary>
         public static float MaxRayDistance { get; set; } = 200f;
 
-        // â”€â”€ Body-part fallback heights â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Body-part fallback heights ───────────────────────────────────────
         //
         // Player.Position is feet/root. When a player's skeleton hasn't been
         // resolved yet (mid-init after spawn / scene swap) we substitute these
@@ -55,7 +55,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private const float PelvisFallbackY = 0.50f;
 
         // Clearance subtracted from each ray's max distance so the target's
-        // own collider doesn't self-block. 5 cm â€” conservative enough to
+        // own collider doesn't self-block. 5 cm — conservative enough to
         // still catch glass / thin walls right in front of the target while
         // skipping the body capsule.
         private const float TargetClearance = 0.05f;
@@ -68,7 +68,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private const int BoneBitChest  = 1;
         private const int BoneBitPelvis = 2;
 
-        // â”€â”€ Worker state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Worker state ─────────────────────────────────────────────────────
 
         private static WorkerThread? _worker;
         private static volatile bool _enabled;
@@ -77,13 +77,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         public static bool Enabled => _enabled;
 
-        // â”€â”€ Per-bone toggles (exposed so the debug window can disable individual bones) â”€â”€
+        // ── Per-bone toggles (exposed so the debug window can disable individual bones) ──
 
         public static bool CheckHead   { get; set; } = true;
         public static bool CheckChest  { get; set; } = true;
         public static bool CheckPelvis { get; set; } = true;
 
-        // â”€â”€ Config persistence helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Config persistence helpers ────────────────────────────────────────
 
         public static void LoadFromConfig(SilkConfig cfg)
         {
@@ -101,7 +101,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             cfg.VisCheckBonePelvis     = CheckPelvis;
         }
 
-        // â”€â”€ Public stats (read by the debug overlay) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Public stats (read by the debug overlay) ─────────────────────────
 
         /// <summary>Aggregate stats from the most recent visibility tick.</summary>
         public static TickStats LastTickStats { get; private set; }
@@ -118,7 +118,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ Lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Lifecycle ────────────────────────────────────────────────────────
 
         public static void Start()
         {
@@ -144,7 +144,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             Log.WriteLine("[VisibilityWorker] Stopped.");
         }
 
-        // â”€â”€ Tick body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Tick body ────────────────────────────────────────────────────────
 
         private static void Tick(CancellationToken ct)
         {
@@ -159,7 +159,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
             var gw = Memory.Game;
             var local = gw?.LocalPlayer;
-            // Skip when local player isn't alive â€” rays from a dead body
+            // Skip when local player isn't alive — rays from a dead body
             // (which still has a position) would either be useless (the body
             // is in cover, so everything looks blocked) or pin "IsVisible"
             // to stale values from the last alive tick. Cleaner to clear the
@@ -184,15 +184,15 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             double totalUs = 0;
             float maxUs = 0f;
             var nowMs = Environment.TickCount64;
-            // Throttle diagnostic logging â€” one line per ~1 second so we can see
+            // Throttle diagnostic logging — one line per ~1 second so we can see
             // eye / target positions and which actor blocked without flooding
             // the log. Gated behind Log.EnableDebugLogging so it stays silent
-            // in normal play â€” the Top Blockers panel + tick-JSONL log are
+            // in normal play — the Top Blockers panel + tick-JSONL log are
             // the structured replacements for this ad-hoc per-second line.
             bool wantDiagLog = Log.EnableDebugLogging && nowMs - _lastDiagLogMs >= 1000;
             bool didDiagLog = false;
 
-            // Reuse one buffer for the per-player results â€” cleared at start of tick.
+            // Reuse one buffer for the per-player results — cleared at start of tick.
             var perPlayer = new List<PlayerCheckResult>(16);
 
             foreach (var p in gw.RegisteredPlayers)
@@ -215,23 +215,23 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 float distHead   = Vector3.Distance(eye, targetHead);
                 float distChest  = Vector3.Distance(eye, targetChest);
                 float distPelvis = Vector3.Distance(eye, targetPelvis);
-                // Reference distance â€” the closest body part. Used for the
+                // Reference distance — the closest body part. Used for the
                 // out-of-range short-circuit and the perPlayer metric.
                 float distRef = MathF.Min(distHead, MathF.Min(distChest, distPelvis));
                 if (distRef <= 0.01f) continue;
                 if (distRef > MaxRayDistance)
                 {
-                    // Too far to be worth raycasting â€” default to visible so
+                    // Too far to be worth raycasting — default to visible so
                     // long-range enemies don't get spuriously hidden.
                     p.IsVisible = true;
                     p.LastVisCheckTickMs = nowMs;
                     continue;
                 }
 
-                // Per-bone visibility â€” bit set when the bone IS visible.
+                // Per-bone visibility — bit set when the bone IS visible.
                 // Run all three even after the first success so the DIAG log
                 // can show which bones are exposed vs blocked. Cheap enough at
-                // current actor counts (3 Ã— ~100 Î¼s â‰ˆ 300 Î¼s per enemy).
+                // current actor counts (3 × ~100 μs ≈ 300 μs per enemy).
                 uint boneVis = 0;
                 int firstBlockerIdx = -1;
                 int firstBlockerBone = -1;
@@ -254,7 +254,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 if (playerUs > maxUs) maxUs = (float)playerUs;
                 totalUs += playerUs;
 
-                // When all bones are disabled there's nothing to block â€” default to visible.
+                // When all bones are disabled there's nothing to block — default to visible.
                 bool anyBoneEnabled = CheckHead || CheckChest || CheckPelvis;
                 bool anyVisible = !anyBoneEnabled || boneVis != 0;
                 p.IsVisible = anyVisible;
@@ -263,7 +263,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 checks++;
                 if (!anyVisible) blocked++;
 
-                // Throttled diagnostic â€” first checked player of the tick gets a log line.
+                // Throttled diagnostic — first checked player of the tick gets a log line.
                 if (wantDiagLog && !didDiagLog)
                 {
                     didDiagLog = true;
@@ -302,24 +302,24 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 _lastPerPlayer.AddRange(perPlayer);
             }
 
-            // Diagnostic hook â€” no-op unless the user enabled tick logging.
+            // Diagnostic hook — no-op unless the user enabled tick logging.
             // Passes the same `perPlayer` list to avoid a second alloc/lock
             // round-trip via the public LastPerPlayer accessor.
             if (perPlayer.Count > 0)
                 VisCheckDiagnostics.OnVisibilityTick(eye, perPlayer, snap);
 
-            // Always-on rolling-window blocker tracker â€” feeds the debug
+            // Always-on rolling-window blocker tracker — feeds the debug
             // window's "Top Blockers" table. Cheap (O(perPlayer)) and the
             // window self-prunes, so leaving it always-on costs nothing.
             BlockerHistory.RecordTick(perPlayer, Environment.TickCount64);
         }
 
-        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Helpers ──────────────────────────────────────────────────────────
 
         /// <summary>
         /// Local-player eye position. Prefer the resolved head bone; fall back
         /// to <c>Position + EyeFallbackY</c> so the ray starts at standing-eye
-        /// height instead of feet level â€” feet-to-feet rays go through the
+        /// height instead of feet level — feet-to-feet rays go through the
         /// ground and would always report blocked.
         /// </summary>
         private static Vector3 ResolveEyePosition(Player local)
@@ -405,7 +405,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                         : $"layer=0x{mask:X8}(multi)";
                 string nameDesc = string.IsNullOrEmpty(blocker.Name)
                     ? "(no name)"
-                    : blocker.Name.Length > 36 ? string.Concat(blocker.Name.AsSpan(0, 35), "â€¦") : blocker.Name;
+                    : blocker.Name.Length > 36 ? string.Concat(blocker.Name.AsSpan(0, 35), "…") : blocker.Name;
                 blockerDesc =
                     $"bone={boneLabel(firstBlockerBone)} " +
                     $"actor#{firstBlockerIdx} \"{nameDesc}\" " +
@@ -424,7 +424,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static bool IsFinite(Vector3 v)
             => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
-        // â”€â”€ Stats DTOs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Stats DTOs ───────────────────────────────────────────────────────
 
         /// <summary>Aggregate stats from one visibility tick. Read by the debug overlay.</summary>
         public readonly struct TickStats
@@ -454,11 +454,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             public int     BlockerActorIdx { get; init; }
             /// <summary>
             /// One bit per bone (bit 0 = head, 1 = chest, 2 = pelvis).
-            /// Bit set â†’ bone is visible from the local eye. Uppercase H/C/P
+            /// Bit set → bone is visible from the local eye. Uppercase H/C/P
             /// in the debug window indicates the bit is set; lowercase = blocked.
             /// </summary>
             public uint    BoneMask    { get; init; }
-            /// <summary>Last known world position â€” used for live ray rendering in Cache View.</summary>
+            /// <summary>Last known world position — used for live ray rendering in Cache View.</summary>
             public Vector3 LastKnownPos { get; init; }
         }
     }

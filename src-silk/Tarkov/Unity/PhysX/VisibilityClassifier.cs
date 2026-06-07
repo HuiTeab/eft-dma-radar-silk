@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 {
     /// <summary>
-    /// Decides which cached actors are "see-through" â€” i.e. ignored by the
+    /// Decides which cached actors are "see-through" — i.e. ignored by the
     /// visibility raycaster. Three rule sources combine via OR:
     /// <list type="bullet">
     ///   <item><b>Layer mask</b> (<see cref="Raycaster.SeeThroughLayerMask"/>):
@@ -14,7 +14,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     ///   <item><b>Global name substrings</b> (<see cref="GlobalNamePatterns"/>):
     ///     applied to every map. Substring match against
     ///     <see cref="CachedActor.Name"/> (ordinal case-insensitive).
-    ///     Default: <c>"Glass"</c> â€” windows are transparent regardless of
+    ///     Default: <c>"Glass"</c> — windows are transparent regardless of
     ///     which scene loaded them.</item>
     ///   <item><b>Map-scoped name substrings</b> (<see cref="GetMapPatterns"/>
     ///     / <see cref="SetMapPatterns"/>): same substring semantics as the
@@ -28,7 +28,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// <remarks>
     /// <para>
     /// <b>Why pre-compute, not check per-ray:</b> name-substring match on every
-    /// ray Ã— actor pair would cost ~25 k extra string scans per visibility
+    /// ray × actor pair would cost ~25 k extra string scans per visibility
     /// frame. Instead we classify once at snapshot build / load time and
     /// store the verdict as <see cref="CachedActor.IsSeeThrough"/>; the
     /// raycaster's Gate 0 then becomes a single bool read per actor.
@@ -40,7 +40,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// </para>
     /// <para>
     /// <b>Not persisted:</b> <see cref="CachedActor.IsSeeThrough"/> is a
-    /// derived value â€” both fresh builds and disk-loaded snapshots compute
+    /// derived value — both fresh builds and disk-loaded snapshots compute
     /// it from the current rules. Rule changes invalidate the runtime
     /// classification but not the on-disk snapshot file, so the
     /// 30 s rebuild cost is amortised across rule iteration.
@@ -49,17 +49,17 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     internal static class VisibilityClassifier
     {
         // Patterns that apply to every map. Each entry is a case-insensitive
-        // substring match â€” pick patterns narrow enough that you won't match
+        // substring match — pick patterns narrow enough that you won't match
         // legitimate blockers by accident.
         //
-        //   "Glass" â€” windows / panes / ballistic glass. Visually transparent
+        //   "Glass" — windows / panes / ballistic glass. Visually transparent
         //   even when the material stops bullets, so the visibility raycast
         //   should pass through.
         //
-        //   "Cube (" â€” Unity's auto-generated primitive name with a numeric
+        //   "Cube (" — Unity's auto-generated primitive name with a numeric
         //   suffix (e.g. "Cube (15)", "Cube (270)"). Live match logs on
         //   Arena_AutoService showed a network of ~361 such actors on layer
-        //   29 â€” invisible game-logic cubes (spawn protection / detection
+        //   29 — invisible game-logic cubes (spawn protection / detection
         //   volumes) that block sight without any visible geometry. The
         //   trailing "(" anchors the match to the auto-named instances and
         //   leaves any legitimate "Cube" prefix alone.
@@ -68,7 +68,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             "Glass",
             "Cube (",
             // Player capsule colliders. Layer varies by map (16 on Arena_Prison,
-            // 8 on Arena_Bay5) so the layer-mask rule alone isn't enough â€” a
+            // 8 on Arena_Bay5) so the layer-mask rule alone isn't enough — a
             // live Arena_Bay5 match log showed "PlayerSuperior(Clone)" capsules
             // on layer 8 reported as blockers, masking the real geometry behind
             // teammates / enemies. Matching the name catches every map regardless
@@ -85,13 +85,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         // wrongly blocking sightlines on each scene and adds the relevant
         // substring via SetMapPatterns.
         //
-        // No locking â€” the readers (Classify, Reclassify) run on a single
+        // No locking — the readers (Classify, Reclassify) run on a single
         // worker / build thread; the writers (UI button presses, config
         // load) are infrequent and atomic at the dictionary-replace level.
         private static readonly Dictionary<string, string[]> _mapPatterns
             = new(System.StringComparer.OrdinalIgnoreCase);
 
-        // â”€â”€ Force-blocker rules â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Force-blocker rules ──────────────────────────────────────────────
         //
         // The inverse of see-through patterns. When the see-through rules
         // (layer mask + global / per-map name patterns) classify an actor as
@@ -101,17 +101,17 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         //   - SeeThroughLayerMask covers a layer that mostly contains
         //     gameplay-trigger geometry but has a handful of real walls on
         //     it (e.g. layer 18 might have a few "Container_Wall_*" that
-        //     should still block) â€” adding "Container_Wall" as a force-blocker
+        //     should still block) — adding "Container_Wall" as a force-blocker
         //     keeps the layer rule simple without listing every safe actor.
         //
         //   - A global see-through pattern is broader than ideal (e.g.
         //     "Cube" catches both gameplay cubes AND a few level-design
-        //     concrete-cube props) â€” adding a more specific force-blocker
+        //     concrete-cube props) — adding a more specific force-blocker
         //     pattern ("ConcreteCube") carves out the real cover.
         //
         // Force-blocker rules take precedence over see-through rules.
 
-        /// <summary>Global force-blocker name substrings â€” apply on every map.</summary>
+        /// <summary>Global force-blocker name substrings — apply on every map.</summary>
         public static string[] GlobalBlockerPatterns { get; set; } = [];
 
         private static readonly Dictionary<string, string[]> _mapBlockerPatterns
@@ -134,7 +134,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <summary>
         /// Returns the per-map force-blocker pattern list for
         /// <paramref name="mapId"/>, or an empty array when no entry exists.
-        /// Snapshot copy â€” mutating it does not affect storage.
+        /// Snapshot copy — mutating it does not affect storage.
         /// </summary>
         public static string[] GetMapBlockerPatterns(string mapId)
         {
@@ -160,7 +160,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <summary>
         /// Returns the per-map pattern list for <paramref name="mapId"/>, or
         /// an empty array when no entry exists. The returned array is a
-        /// snapshot â€” mutating it does not affect the stored entry; use
+        /// snapshot — mutating it does not affect the stored entry; use
         /// <see cref="SetMapPatterns"/> for that.
         /// </summary>
         public static string[] GetMapPatterns(string mapId)
@@ -175,7 +175,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// </summary>
         public static IReadOnlyDictionary<string, string[]> AllMapPatterns => _mapPatterns;
 
-        // â”€â”€ Config persistence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Config persistence ────────────────────────────────────────────────
 
         /// <summary>
         /// Applies all classifier settings stored in <paramref name="cfg"/> to the
@@ -244,7 +244,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// </summary>
         public static bool Classify(string mapId, uint shapeLayerMask, string? name)
         {
-            // Step 1 â€” compute baseline see-through verdict from layer + name rules.
+            // Step 1 — compute baseline see-through verdict from layer + name rules.
             bool isSeeThrough = false;
 
             uint layerMask = Raycaster.SeeThroughLayerMask;
@@ -260,7 +260,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     isSeeThrough = true;
             }
 
-            // Step 2 â€” force-blocker override. Only checked when we'd
+            // Step 2 — force-blocker override. Only checked when we'd
             // otherwise mark the actor see-through; rules that don't match
             // a see-through actor don't need to fire because the actor is
             // already a blocker. Order: global first, then map-scoped.
@@ -309,7 +309,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 }
             }
 
-            // Check the force-blocker rules â€” only meaningful when there was
+            // Check the force-blocker rules — only meaningful when there was
             // a see-through rule to override.
             if (seeThroughReason is not null && !string.IsNullOrEmpty(name))
             {
@@ -330,7 +330,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         /// <summary>
         /// Walks every actor in <paramref name="snapshot"/> and refreshes
-        /// <see cref="CachedActor.IsSeeThrough"/> in place â€” for when the user
+        /// <see cref="CachedActor.IsSeeThrough"/> in place — for when the user
         /// edits the rule lists at runtime and wants the new rules to take
         /// effect without rebuilding the cache.
         /// </summary>
@@ -339,7 +339,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (snapshot is null || snapshot.IsEmpty) return;
 
             // Track flips so the diagnostic hook can report "your new pattern
-            // moved N actors to see-through, M back to blocker" â€” much more
+            // moved N actors to see-through, M back to blocker" — much more
             // useful than just "rules changed".
             int flipsToSee = 0, flipsToBlock = 0;
             foreach (var a in snapshot.Actors)
@@ -363,7 +363,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         }
 
         /// <summary>
-        /// Substring scan helper â€” case-insensitive ordinal Contains over a
+        /// Substring scan helper — case-insensitive ordinal Contains over a
         /// flat array. Empty / null entries in <paramref name="patterns"/>
         /// are skipped so callers don't have to pre-clean the list.
         /// </summary>

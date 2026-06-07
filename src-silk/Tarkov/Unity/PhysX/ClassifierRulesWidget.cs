@@ -15,32 +15,32 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// </summary>
     internal static class ClassifierRulesWidget
     {
-        // â”€â”€ Layer mask editor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Layer mask editor ────────────────────────────────────────────────
 
         private static string _maskHex      = $"{Raycaster.SeeThroughLayerMask:X8}";
         private static bool   _maskHexFocus; // true while the InputText has keyboard focus
 
-        // â”€â”€ Pattern add inputs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Pattern add inputs ───────────────────────────────────────────────
 
         private static string _newGlobalPat = "";
         private static string _newMapPat    = "";
         private static string _newGlobalBlk = "";
         private static string _newMapBlk    = "";
 
-        // â”€â”€ Status feedback (shown for 4 s after any change) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Status feedback (shown for 4 s after any change) ─────────────────
 
         private static string _statusMsg = "";
         private static long   _statusMsgMs;
 
-        // â”€â”€ Bit-grid colours (AABBGGRR little-endian) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Bit-grid colours (AABBGGRR little-endian) ────────────────────────
         // See-through bit = orange/red  |  Blocker bit = dark gray
 
-        private const uint ColSeeThru      = 0xFF2060E0u;  // R=E0 G=60 B=20 â€” orange
+        private const uint ColSeeThru      = 0xFF2060E0u;  // R=E0 G=60 B=20 — orange
         private const uint ColSeeThruHover = 0xFF4080FFu;
         private const uint ColBlocker      = 0xFF333333u;
         private const uint ColBlockerHover = 0xFF555555u;
 
-        // â”€â”€ Entry point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Entry point ──────────────────────────────────────────────────────
 
         /// <summary>
         /// Draws the full rule editor at the current cursor position.
@@ -61,15 +61,15 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             DrawReclassifyRow();
         }
 
-        // â”€â”€ Layer mask â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Layer mask ───────────────────────────────────────────────────────
 
         private static void DrawLayerMaskSection()
         {
             uint curMask = Raycaster.SeeThroughLayerMask;
 
-            // â”€â”€ Foot-gun guard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Foot-gun guard ──────────────────────────────────────────────
             // A mask of 0xFFFFFFFF (or anything close to it) means "every
-            // layer is see-through" â€” i.e. nothing ever blocks. The user
+            // layer is see-through" — i.e. nothing ever blocks. The user
             // hit this exact state in a real match and spent time wondering
             // why vischeck reported every enemy as visible, so surface it
             // loudly and offer a one-click reset to the conservative default.
@@ -78,8 +78,8 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             {
                 ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1.0f, 0.45f, 0.30f, 1f));
                 ImGui.TextUnformatted(curMask == uint.MaxValue
-                    ? "âš  Mask = 0xFFFFFFFF â€” EVERY layer see-through, nothing will block."
-                    : $"âš  Mask has {bitsSet} layers set â€” broader than usual; check for overreach.");
+                    ? "⚠ Mask = 0xFFFFFFFF — EVERY layer see-through, nothing will block."
+                    : $"⚠ Mask has {bitsSet} layers set — broader than usual; check for overreach.");
                 ImGui.PopStyleColor();
                 if (ImGui.SmallButton("Reset to 0x60050000 (16+18+29+30)"))
                 {
@@ -98,7 +98,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
             ImGui.TextDisabled("See-through layer mask:");
 
-            // Keep the hex string in sync with the live property â€” but only when the
+            // Keep the hex string in sync with the live property — but only when the
             // text field is NOT focused, so we don't fight the user's typing.
             if (!_maskHexFocus)
                 _maskHex = $"{curMask:X8}";
@@ -115,7 +115,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                            // (mask is read per-ray, not baked into IsSeeThrough for mask-based actors)
             }
             if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Hex bitmask â€” each set bit marks that Unity layer as see-through.\nSame encoding as ShapeLayerMask: bit N = layer N.");
+                ImGui.SetTooltip("Hex bitmask — each set bit marks that Unity layer as see-through.\nSame encoding as ShapeLayerMask: bit N = layer N.");
 
             // Actor hit count for the current mask
             var snap = SceneCache.Snapshot;
@@ -128,9 +128,9 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 ImGui.TextDisabled($"({hits}/{snap.Actors.Length} actors)");
             }
 
-            // 4 Ã— 8 bit grid â€” click to toggle a layer bit.
+            // 4 × 8 bit grid — click to toggle a layer bit.
             // Orange = see-through, dark = blocks rays.
-            ImGui.TextDisabled("Layers 0â€“31 (orange = see-through, dark = blocks):");
+            ImGui.TextDisabled("Layers 0–31 (orange = see-through, dark = blocks):");
             bool gridChanged = false;
             for (int row = 0; row < 4; row++)
             {
@@ -161,25 +161,25 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (gridChanged) Persist();
         }
 
-        // â”€â”€ Global name patterns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Global name patterns ─────────────────────────────────────────────
 
         private static void DrawGlobalPatternsSection()
         {
-            ImGui.TextDisabled("Global patterns â€” applied to every map:");
+            ImGui.TextDisabled("Global patterns — applied to every map:");
             var pats = VisibilityClassifier.GlobalNamePatterns;
             var snap = SceneCache.Snapshot;
 
             for (int i = 0; i < pats.Length; i++)
             {
                 ImGui.PushID($"gp_{i}");
-                // Live actor-count badge next to each existing pattern â€” answers
+                // Live actor-count badge next to each existing pattern — answers
                 // the "is this rule still doing anything?" question at a glance.
                 int hits = CountMatches(snap, pats[i]);
                 ImGui.TextUnformatted($"  \"{pats[i]}\"  ");
                 ImGui.SameLine();
                 ImGui.TextDisabled($"({hits} actors)");
                 ImGui.SameLine();
-                if (ImGui.SmallButton("Ã—"))
+                if (ImGui.SmallButton("×"))
                 {
                     var next = new string[pats.Length - 1];
                     int ni = 0;
@@ -197,7 +197,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             float avail = ImGui.GetContentRegionAvail().X;
             float addW  = ImGui.CalcTextSize("Add##gp").X + ImGui.GetStyle().FramePadding.X * 2 + 6f;
             ImGui.SetNextItemWidth(avail - addW - ImGui.GetStyle().ItemSpacing.X);
-            ImGui.InputTextWithHint("##ngp", "new patternâ€¦", ref _newGlobalPat, 128);
+            ImGui.InputTextWithHint("##ngp", "new pattern…", ref _newGlobalPat, 128);
             ImGui.SameLine();
             if (ImGui.SmallButton("Add##gp") && !string.IsNullOrWhiteSpace(_newGlobalPat))
             {
@@ -208,7 +208,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 _newGlobalPat = "";
                 PersistAndReclassify();
             }
-            // Live impact preview â€” re-computed every frame against the current
+            // Live impact preview — re-computed every frame against the current
             // snapshot so the user sees exactly what their typed pattern would
             // catch. Splits the count by "currently blocker" so they can tell
             // whether the rule is broadening or just labelling already-see-through
@@ -216,11 +216,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (!string.IsNullOrEmpty(_newGlobalPat))
             {
                 var (matches, blockers) = CountMatchesSplit(snap, _newGlobalPat);
-                ImGui.TextDisabled($"  â†’ {matches} actor(s) match, {blockers} currently blocker");
+                ImGui.TextDisabled($"  → {matches} actor(s) match, {blockers} currently blocker");
             }
         }
 
-        // â”€â”€ Per-map name patterns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Per-map name patterns ─────────────────────────────────────────────
 
         private static void DrawMapPatternsSection()
         {
@@ -231,11 +231,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
             if (string.IsNullOrEmpty(mapId))
             {
-                ImGui.TextDisabled("Map patterns: (no active map â€” join a match first)");
+                ImGui.TextDisabled("Map patterns: (no active map — join a match first)");
                 return;
             }
 
-            ImGui.TextDisabled($"Map patterns â€” {mapId}:");
+            ImGui.TextDisabled($"Map patterns — {mapId}:");
             var pats = VisibilityClassifier.GetMapPatterns(mapId);
 
             for (int i = 0; i < pats.Length; i++)
@@ -246,7 +246,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 ImGui.SameLine();
                 ImGui.TextDisabled($"({hits} actors)");
                 ImGui.SameLine();
-                if (ImGui.SmallButton("Ã—"))
+                if (ImGui.SmallButton("×"))
                 {
                     var next = new string[pats.Length - 1];
                     int ni = 0;
@@ -264,7 +264,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             float avail = ImGui.GetContentRegionAvail().X;
             float addW  = ImGui.CalcTextSize("Add##mp").X + ImGui.GetStyle().FramePadding.X * 2 + 6f;
             ImGui.SetNextItemWidth(avail - addW - ImGui.GetStyle().ItemSpacing.X);
-            ImGui.InputTextWithHint("##nmp", "new patternâ€¦", ref _newMapPat, 128);
+            ImGui.InputTextWithHint("##nmp", "new pattern…", ref _newMapPat, 128);
             ImGui.SameLine();
             if (ImGui.SmallButton("Add##mp") && !string.IsNullOrWhiteSpace(_newMapPat))
             {
@@ -279,11 +279,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (!string.IsNullOrEmpty(_newMapPat))
             {
                 var (matches, blockers) = CountMatchesSplit(snap, _newMapPat);
-                ImGui.TextDisabled($"  â†’ {matches} actor(s) match, {blockers} currently blocker");
+                ImGui.TextDisabled($"  → {matches} actor(s) match, {blockers} currently blocker");
             }
         }
 
-        // â”€â”€ Global force-blocker patterns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Global force-blocker patterns ────────────────────────────────────
         //
         // The inverse of see-through patterns. Matches override the
         // see-through verdict so the actor stays a blocker even when a
@@ -296,7 +296,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static void DrawGlobalBlockerPatternsSection()
         {
             ImGui.TextColored(BlockerHeaderColor,
-                "Force-blocker patterns (global â€” override see-through):");
+                "Force-blocker patterns (global — override see-through):");
             var pats = VisibilityClassifier.GlobalBlockerPatterns;
             var snap = SceneCache.Snapshot;
 
@@ -304,7 +304,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             {
                 ImGui.PushID($"gbp_{i}");
                 // For force-blocker rules the useful per-rule badge is "how
-                // many actors does this STILL flip to blocker?" â€” i.e. how
+                // many actors does this STILL flip to blocker?" — i.e. how
                 // many would have been see-through without it. That's what
                 // (matches, currentlySeeThru) describes.
                 var (matches, currentSee) = CountMatchesSeeThroughSplit(snap, pats[i]);
@@ -312,7 +312,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 ImGui.SameLine();
                 ImGui.TextDisabled($"({matches} matches; would-be-see-thru without rule: {currentSee})");
                 ImGui.SameLine();
-                if (ImGui.SmallButton("Ã—"))
+                if (ImGui.SmallButton("×"))
                 {
                     var next = new string[pats.Length - 1];
                     int ni = 0;
@@ -330,7 +330,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             float avail = ImGui.GetContentRegionAvail().X;
             float addW  = ImGui.CalcTextSize("Add##gbp").X + ImGui.GetStyle().FramePadding.X * 2 + 6f;
             ImGui.SetNextItemWidth(avail - addW - ImGui.GetStyle().ItemSpacing.X);
-            ImGui.InputTextWithHint("##ngbp", "new force-blocker patternâ€¦", ref _newGlobalBlk, 128);
+            ImGui.InputTextWithHint("##ngbp", "new force-blocker pattern…", ref _newGlobalBlk, 128);
             ImGui.SameLine();
             if (ImGui.SmallButton("Add##gbp") && !string.IsNullOrWhiteSpace(_newGlobalBlk))
             {
@@ -344,7 +344,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (!string.IsNullOrEmpty(_newGlobalBlk))
             {
                 var (m, see) = CountMatchesSeeThroughSplit(snap, _newGlobalBlk);
-                ImGui.TextDisabled($"  â†’ {m} actor(s) match, {see} currently see-through (would flip to blocker)");
+                ImGui.TextDisabled($"  → {m} actor(s) match, {see} currently see-through (would flip to blocker)");
             }
         }
 
@@ -358,12 +358,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (string.IsNullOrEmpty(mapId))
             {
                 ImGui.TextColored(BlockerHeaderColor,
-                    "Force-blocker patterns (map): (no active map â€” join a match first)");
+                    "Force-blocker patterns (map): (no active map — join a match first)");
                 return;
             }
 
             ImGui.TextColored(BlockerHeaderColor,
-                $"Force-blocker patterns â€” {mapId} (override see-through):");
+                $"Force-blocker patterns — {mapId} (override see-through):");
             var pats = VisibilityClassifier.GetMapBlockerPatterns(mapId);
 
             for (int i = 0; i < pats.Length; i++)
@@ -374,7 +374,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 ImGui.SameLine();
                 ImGui.TextDisabled($"({matches} matches; would-be-see-thru without rule: {currentSee})");
                 ImGui.SameLine();
-                if (ImGui.SmallButton("Ã—"))
+                if (ImGui.SmallButton("×"))
                 {
                     var next = new string[pats.Length - 1];
                     int ni = 0;
@@ -392,7 +392,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             float avail = ImGui.GetContentRegionAvail().X;
             float addW  = ImGui.CalcTextSize("Add##mbp").X + ImGui.GetStyle().FramePadding.X * 2 + 6f;
             ImGui.SetNextItemWidth(avail - addW - ImGui.GetStyle().ItemSpacing.X);
-            ImGui.InputTextWithHint("##nmbp", "new force-blocker patternâ€¦", ref _newMapBlk, 128);
+            ImGui.InputTextWithHint("##nmbp", "new force-blocker pattern…", ref _newMapBlk, 128);
             ImGui.SameLine();
             if (ImGui.SmallButton("Add##mbp") && !string.IsNullOrWhiteSpace(_newMapBlk))
             {
@@ -407,12 +407,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (!string.IsNullOrEmpty(_newMapBlk))
             {
                 var (m, see) = CountMatchesSeeThroughSplit(snap, _newMapBlk);
-                ImGui.TextDisabled($"  â†’ {m} actor(s) match, {see} currently see-through (would flip to blocker)");
+                ImGui.TextDisabled($"  → {m} actor(s) match, {see} currently see-through (would flip to blocker)");
             }
         }
 
-        // â”€â”€ Live-preview helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // Substring scan over the snapshot â€” O(N) per call but N is bounded
+        // ── Live-preview helpers ─────────────────────────────────────────────
+        // Substring scan over the snapshot — O(N) per call but N is bounded
         // (~10k actors max) and these only fire when the UI is open, so the
         // cost is bounded to whatever the user can see anyway. No caching:
         // patterns change with every keystroke, and a stale count would be
@@ -470,7 +470,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return (m, s);
         }
 
-        // â”€â”€ Reclassify button + feedback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Reclassify button + feedback ─────────────────────────────────────
 
         private static void DrawReclassifyRow()
         {
@@ -489,7 +489,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Helpers ──────────────────────────────────────────────────────────
 
         private static void Persist()
         {
@@ -502,7 +502,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             VisibilityClassifier.Reclassify(SceneCache.Snapshot);
             Persist();
             int n = SceneCache.Snapshot.Actors.Length;
-            _statusMsg   = $"Reclassified {n} actors â€” saved";
+            _statusMsg   = $"Reclassified {n} actors — saved";
             _statusMsgMs = Environment.TickCount64;
         }
     }

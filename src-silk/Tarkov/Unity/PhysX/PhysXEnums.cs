@@ -46,14 +46,14 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         TriangleMesh  = 5,
         HeightField   = 6,
 
-        /// <summary>Sentinel â€” anything outside [0..6] is treated as Invalid.</summary>
+        /// <summary>Sentinel — anything outside [0..6] is treated as Invalid.</summary>
         Invalid       = -1,
     }
 
     /// <summary>
     /// Per-shape behaviour flag byte stored at <c>NpShape.shapeFlags</c>. PhysX
     /// uses these to decide whether a shape participates in simulation, in
-    /// scene queries, or both â€” plus whether it's a trigger (raycasts pass
+    /// scene queries, or both — plus whether it's a trigger (raycasts pass
     /// through, only overlap callbacks fire).
     /// </summary>
     [Flags]
@@ -64,9 +64,9 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         SimulationShape  = 1 << 0, // 0x01
         /// <summary>Shape is visible to scene-query raycasts/overlaps. Required for our raycaster to hit it.</summary>
         SceneQueryShape  = 1 << 1, // 0x02
-        /// <summary>Shape is a trigger volume â€” overlap events only, no physical blocking. We must SKIP these for visibility.</summary>
+        /// <summary>Shape is a trigger volume — overlap events only, no physical blocking. We must SKIP these for visibility.</summary>
         TriggerShape     = 1 << 2, // 0x04
-        /// <summary>Debug visualisation flag â€” irrelevant for us.</summary>
+        /// <summary>Debug visualisation flag — irrelevant for us.</summary>
         Visualization    = 1 << 3, // 0x08
     }
 
@@ -81,13 +81,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         None             = 0,
         /// <summary>Triangle indices are <c>ushort</c> (3 per triangle). When clear, indices are <c>uint</c>.</summary>
         Has16BitIndices  = 1 << 1,
-        /// <summary>Mesh ships precomputed adjacency information â€” not consumed by us.</summary>
+        /// <summary>Mesh ships precomputed adjacency information — not consumed by us.</summary>
         HasAdjacency     = 1 << 2,
     }
 
     /// <summary>
     /// Helpers for classifying / sanity-checking PhysX enum values read from
-    /// DMA. The radar's hot paths read raw values then ask these predicates â€”
+    /// DMA. The radar's hot paths read raw values then ask these predicates —
     /// keeps boundary validation in one place.
     /// </summary>
     internal static class PhysXEnumExtensions

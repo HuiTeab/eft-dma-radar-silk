@@ -130,7 +130,7 @@ namespace eft_dma_radar.Silk.UI.Maps
 
         /// <summary>
         /// Picks the pyramid zoom level that gives roughly 1:1 (or slightly
-        /// oversampled) tile pixels on screen, given the current worldâ†’screen
+        /// oversampled) tile pixels on screen, given the current world→screen
         /// scale at the base projection zoom.
         /// </summary>
         private int PickZoom(float screenPixelsPerBasePixel)
@@ -159,7 +159,7 @@ namespace eft_dma_radar.Silk.UI.Maps
             float sy = windowBounds.Height / mapBounds.Height;
 
             int z = PickZoom(sx); // sx ~ sy (AspectFill keeps them equal)
-            int zShift = _baseZ - z;          // >= 0 â€” base px per tile-px
+            int zShift = _baseZ - z;          // >= 0 — base px per tile-px
             int tilePxAtBase = baseTs << zShift; // size of one tile in base mapPos px
 
             int firstX = Math.Max(0, (int)Math.Floor(mapBounds.Left   / tilePxAtBase));

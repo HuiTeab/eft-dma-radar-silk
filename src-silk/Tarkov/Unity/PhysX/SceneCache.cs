@@ -25,20 +25,20 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// Owns the live PhysX <see cref="SceneSnapshot"/>. Provides:
     /// <list type="bullet">
     ///   <item>A read-only <see cref="Snapshot"/> accessor for the visibility
-    ///     worker and renderers â€” guaranteed to never be null.</item>
+    ///     worker and renderers — guaranteed to never be null.</item>
     ///   <item>A non-blocking <see cref="TriggerBuild"/> that runs the walk on
     ///     a background task; while it runs, the previous snapshot stays
     ///     readable so the radar keeps working.</item>
     ///   <item>Atomic publication: a finished build replaces <see cref="Snapshot"/>
     ///     with a single reference write. Readers that already grabbed the
-    ///     previous reference keep using its arrays â€” safe and lock-free.</item>
+    ///     previous reference keep using its arrays — safe and lock-free.</item>
     ///   <item>State + metrics for the debug overlay (build duration, source
     ///     pointer, actor / mesh / heightfield counts, last error).</item>
     /// </list>
     /// </summary>
     internal static class SceneCache
     {
-        // â”€â”€ Public observable state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Public observable state ──────────────────────────────────────────
 
         /// <summary>The current snapshot. Never null. Replaced atomically by builds.</summary>
         public static SceneSnapshot Snapshot => _snapshot;
@@ -77,7 +77,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// </summary>
         public static bool DropMovementColliders { get; set; } = true;
 
-        // â”€â”€ Per-skip counters from the most recent build (for IDA-assisted debugging) â”€â”€
+        // ── Per-skip counters from the most recent build (for IDA-assisted debugging) ──
         public static int LastSkippedNonRigid    { get; private set; }
         public static int LastSkippedZeroShapes  { get; private set; }
         public static int LastSkippedReadError   { get; private set; }
@@ -88,7 +88,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <summary>The raw concrete-type byte read at <c>+0x8</c> of that sample actor. Useful for IDA cross-check.</summary>
         public static ushort LastSampleActorTypeRaw { get; private set; }
 
-        // â”€â”€ Backing fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Backing fields ───────────────────────────────────────────────────
 
         private static SceneSnapshot _snapshot = SceneSnapshot.Empty;
         private static SceneCacheState _state = SceneCacheState.Idle;
@@ -108,18 +108,18 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         // probe. Each entry is (gameObjectPtr, expectedLayer-mask-from-shape).
         // Reset at the start of every Walk; emptied + analysed in the build
         // summary block so the right offset can be picked empirically rather
-        // than guessed. Sampled, not exhaustive â€” 256 actors is plenty of
+        // than guessed. Sampled, not exhaustive — 256 actors is plenty of
         // statistical power for a 32-value-domain probe.
         private const int MaxLayerProbeSamples = 256;
         private static readonly List<(ulong GameObject, uint ShapeLayerMask)> _layerProbeSamples
             = new(MaxLayerProbeSamples);
 
-        // â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Public API ───────────────────────────────────────────────────────
 
         /// <summary>
         /// Replaces <see cref="Snapshot"/> with the empty placeholder. Used on
         /// match end / game disconnect so we never serve a stale snapshot from
-        /// a previous match. Cheap â€” one reference write.
+        /// a previous match. Cheap — one reference write.
         /// </summary>
         public static void Reset()
         {
@@ -130,7 +130,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         /// <summary>
         /// Loads a snapshot for <paramref name="mapId"/> from disk and
-        /// publishes it as the current <see cref="Snapshot"/> â€” bypassing
+        /// publishes it as the current <see cref="Snapshot"/> — bypassing
         /// the fingerprint check so the Cache View can inspect cached maps
         /// with no live game attached. Magic / version / CRC still validate;
         /// any failure leaves the previous snapshot in place and returns
@@ -139,8 +139,8 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <para>
         /// Re-entrancy: shares the <c>_buildInFlight</c> guard with
         /// <see cref="TriggerBuild"/> so a live build and an offline load
-        /// can't race. The load is synchronous â€” the on-disk parse is fast
-        /// (â‰¤ 500 ms even for 10 k actors) and we want the snapshot ready
+        /// can't race. The load is synchronous — the on-disk parse is fast
+        /// (≤ 500 ms even for 10 k actors) and we want the snapshot ready
         /// before the next UI frame redraws.
         /// </para>
         /// </summary>
@@ -205,7 +205,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (Interlocked.Exchange(ref _buildInFlight, 1) == 1)
             {
                 if (!quiet)
-                    Log.WriteLine("[SceneCache] Build already in flight â€” request ignored.");
+                    Log.WriteLine("[SceneCache] Build already in flight — request ignored.");
                 return false;
             }
 
@@ -221,10 +221,10 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 var sw = Stopwatch.StartNew();
                 try
                 {
-                    // Persistence fast path â€” try loading a previously-saved
+                    // Persistence fast path — try loading a previously-saved
                     // snapshot for this map first. Validates magic, CRC, and
                     // fingerprint (UnityPlayer FileVersion + mapId); mismatch
-                    // â‡’ silently fall through to a live build.
+                    // ⇒ silently fall through to a live build.
                     ulong expectedFp = SnapshotSerializer.ComputeFingerprint(
                         Memory.UnityPlayerVersion, mapId);
                     if (SnapshotSerializer.TryLoad(mapId, expectedFp, out var cached, out var loadErr)
@@ -244,7 +244,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                         return;
                     }
                     if (!string.IsNullOrEmpty(loadErr))
-                        Log.WriteLine($"[SceneCache] Disk cache miss: {loadErr} â€” building fresh");
+                        Log.WriteLine($"[SceneCache] Disk cache miss: {loadErr} — building fresh");
 
                     var fresh = BuildOnce(mapId);
                     sw.Stop();
@@ -308,7 +308,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return true;
         }
 
-        // â”€â”€ Build implementation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Build implementation ─────────────────────────────────────────────
 
         /// <summary>
         /// Walks the live PhysX scene graph and builds a fresh snapshot. Runs on
@@ -471,7 +471,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             var stepCounts = new int[Enum.GetValues<BuildActorResult>().Length];
             ulong sampleActor = 0;
             ushort sampleType = 0;
-            // Remember the first actor whose shape pre-check passes â€” that's the
+            // Remember the first actor whose shape pre-check passes — that's the
             // shaped actor whose hex dump tells us if downstream offsets are right.
             ulong firstShapedActor = 0;
             // Sample shape pointers from spread-out shaped actors so the
@@ -959,10 +959,10 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 $"skipped(non-rigid={skippedNonRigid}, zero-shapes={skippedZeroShapes}, " +
                 $"read-error={skippedReadError}, bad-geometry={skippedBadGeometry}, " +
                 $"collider-dup={skippedCollider}) " +
-                $"â€” meshes={meshes.Count} convex={convexes.Count} hfs={heightFields.Count} " +
+                $"— meshes={meshes.Count} convex={convexes.Count} hfs={heightFields.Count} " +
                 $"multi-shape={multiShapeActors}");
 
-            // Layer histogram â€” counts processed actors by Unity layer (word1 one-hot).
+            // Layer histogram — counts processed actors by Unity layer (word1 one-hot).
             // Multi-bit / zero values get bucketed as "other". Top 10 by count printed
             // so the user can see the layer distribution at a glance and decide
             // which layers to filter as see-through props.
@@ -986,8 +986,8 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 Log.WriteLine($"[SceneCache] Layer histogram: {hist}");
 
                 // Per-actor name histogram from Marcel's chain
-                // (NpShapeâ†’NativeColliderâ†’NativeGameObject). Gives us human-readable
-                // identifiers per actor â€” strictly more useful than per-layer category
+                // (NpShape→NativeCollider→NativeGameObject). Gives us human-readable
+                // identifiers per actor — strictly more useful than per-layer category
                 // names from TagManager (which we couldn't reach in arena anyway).
                 int withName = 0;
                 var nameHist = new Dictionary<string, int>(64, StringComparer.Ordinal);
@@ -1003,7 +1003,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     var topNames = nameHist
                         .OrderByDescending(kv => kv.Value)
                         .Take(8)
-                        .Select(kv => $"\"{Truncate(kv.Key, 32)}\"Ã—{kv.Value}");
+                        .Select(kv => $"\"{Truncate(kv.Key, 32)}\"×{kv.Value}");
                     Log.WriteLine(
                         $"[SceneCache] Actor names: {withName}/{actors.Count} with name, " +
                         $"{distinct} distinct, top: {string.Join(" ", topNames)}");
@@ -1015,7 +1015,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
                 // Cross-check: every actor's UnityLayer (from the chain) should
                 // match log2(ShapeLayerMask) (from PxFilterData.word1). Divergence
-                // is interesting â€” either Marcel's offsets are wrong, our
+                // is interesting — either Marcel's offsets are wrong, our
                 // filter-data reading is wrong, or there's a class of actor where
                 // the shape's filter doesn't match the GameObject's layer.
                 int crossChecked = 0, layersAgree = 0, layersDisagree = 0;
@@ -1023,7 +1023,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 {
                     if (a.UnityLayer < 0) continue;
                     uint m = a.ShapeLayerMask;
-                    if (m == 0 || (m & (m - 1)) != 0) continue; // non-one-hot â€” skip
+                    if (m == 0 || (m & (m - 1)) != 0) continue; // non-one-hot — skip
                     crossChecked++;
                     int idxFromMask = System.Numerics.BitOperations.Log2(m);
                     if (idxFromMask == a.UnityLayer) layersAgree++;
@@ -1037,7 +1037,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                         (layersDisagree > 0 ? $", {layersDisagree} disagree" : ""));
                 }
 
-                // See-through breakdown â€” how many actors does the classifier
+                // See-through breakdown — how many actors does the classifier
                 // (Phase 1 V1: layer mask + name patterns) treat as
                 // transparent, and by which rule. Helps the user dial in the
                 // see-through patterns without having to manually correlate
@@ -1064,16 +1064,16 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 }
                 // Per-rule counts overlap (an actor that matches both layer
                 // and a name pattern is counted in both columns), so they
-                // sum to â‰¥ seeThroughTotal â€” by design, so the user can see
+                // sum to ≥ seeThroughTotal — by design, so the user can see
                 // each rule's pull independently.
                 Log.WriteLine(
                     $"[SceneCache] See-through filter: {seeThroughTotal}/{actors.Count} actors " +
-                    $"(layer-mask 0x{seeThroughLayerMask:X}â†’{seeThroughByLayer}, " +
-                    $"global-names [{string.Join(",", globalPatterns)}]â†’{seeThroughByGlobalName}, " +
-                    $"map-names ({mapPatterns.Length})â†’{seeThroughByMapName})");
+                    $"(layer-mask 0x{seeThroughLayerMask:X}→{seeThroughByLayer}, " +
+                    $"global-names [{string.Join(",", globalPatterns)}]→{seeThroughByGlobalName}, " +
+                    $"map-names ({mapPatterns.Length})→{seeThroughByMapName})");
 
                 // Loud guard: if > 90 % of actors got filtered out as see-through,
-                // vischeck is effectively disabled â€” the user almost certainly
+                // vischeck is effectively disabled — the user almost certainly
                 // didn't mean to configure that. Surface it as a WARNING so it's
                 // visible in the console even when buried in normal build output.
                 if (actors.Count > 0)
@@ -1082,9 +1082,9 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     if (seeThruPct >= 90.0)
                     {
                         Log.Write(AppLogLevel.Warning,
-                            $"[SceneCache] {seeThruPct:F0}% of actors are see-through â€” vischeck will rarely block. " +
+                            $"[SceneCache] {seeThruPct:F0}% of actors are see-through — vischeck will rarely block. " +
                             $"Likely cause: SeeThroughLayerMask=0x{seeThroughLayerMask:X} is too broad. " +
-                            $"Open VisCheck Debug (F11) â†’ Classifier Rules â†’ Reset.");
+                            $"Open VisCheck Debug (F11) → Classifier Rules → Reset.");
                     }
                 }
 
@@ -1099,21 +1099,21 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     int step = Math.Max(1, seeThroughTotal / SampleSize);
                     int hitIndex = 0;
                     var sb = new System.Text.StringBuilder();
-                    sb.AppendLine($"[SceneCache] See-through sample ({Math.Min(SampleSize, seeThroughTotal)} of {seeThroughTotal} â€” inspect for wrongly-filtered colliders):");
+                    sb.AppendLine($"[SceneCache] See-through sample ({Math.Min(SampleSize, seeThroughTotal)} of {seeThroughTotal} — inspect for wrongly-filtered colliders):");
                     foreach (var a in actors)
                     {
                         if (!a.IsSeeThrough) continue;
                         if (hitIndex++ % step != 0) continue;
                         if (taken++ >= SampleSize) break;
                         string nm = string.IsNullOrEmpty(a.Name) ? "(no name)"
-                            : a.Name.Length > 48 ? string.Concat(a.Name.AsSpan(0, 47), "â€¦") : a.Name;
+                            : a.Name.Length > 48 ? string.Concat(a.Name.AsSpan(0, 47), "…") : a.Name;
                         string why = VisibilityClassifier.Explain(mapId, a.ShapeLayerMask, a.Name);
-                        sb.AppendLine($"  \"{nm}\" type={a.GeometryType} layer={a.UnityLayer} â†’ {why}");
+                        sb.AppendLine($"  \"{nm}\" type={a.GeometryType} layer={a.UnityLayer} → {why}");
                     }
                     Log.WriteLine(sb.ToString().TrimEnd());
                 }
 
-                // Layer-offset probe â€” safety net for future Unity layout
+                // Layer-offset probe — safety net for future Unity layout
                 // shifts. Sweeps candidate offsets in NativeGameObject's
                 // header region and scores each by how often the read int32
                 // matches log2(ShapeLayerMask). If the winner matches the
@@ -1148,7 +1148,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     }
 
                     // Quiet when the probe confirms the committed offset with
-                    // high confidence â€” every build doesn't need to repeat
+                    // high confidence — every build doesn't need to repeat
                     // "the offset is still correct". Loud only on disagreement.
                     bool agrees = bestOffset == PhysXOffsets.NativeGameObject_Layer
                                   && bestMatches >= (samples * 4 / 5); // 80 %
@@ -1159,22 +1159,22 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                         Log.WriteLine(
                             $"[SceneCache] Layer-offset probe DISAGREES with committed " +
                             $"0x{PhysXOffsets.NativeGameObject_Layer:X2} " +
-                            $"({samples} samples) â€” top: {string.Join(" ", top)}" +
+                            $"({samples} samples) — top: {string.Join(" ", top)}" +
                             (bestOffset >= 0 && bestMatches > samples / 2
-                                ? $" â†’ update PhysXOffsets.NativeGameObject_Layer to 0x{bestOffset:X2}"
-                                : " â†’ no clear winner either; layer offset reading is broken"));
+                                ? $" → update PhysXOffsets.NativeGameObject_Layer to 0x{bestOffset:X2}"
+                                : " → no clear winner either; layer offset reading is broken"));
                     }
                 }
             }
 
             // Multi-shape comparison: read N NpShape memory blocks side-by-side
             // and print u32 per offset. Looking for the offset where values look
-            // like Unity one-hot layer masks (1, 2, 4, 8, ... 0x80000000) â€” that's
+            // like Unity one-hot layer masks (1, 2, 4, 8, ... 0x80000000) — that's
             // simulationFilterData.word0 = the shape's Unity layer.
             if (sampledShapePtrs.Count >= 2)
                 DumpShapeComparison(sampledShapePtrs);
 
-            // Per-step breakdown of the bad-geometry bucket â€” pinpoints which offset
+            // Per-step breakdown of the bad-geometry bucket — pinpoints which offset
             // in PhysXOffsets is wrong (the step where the chain breaks).
             if (skippedBadGeometry > 0)
             {
@@ -1194,12 +1194,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             // If nothing made it through, probe actors at three spread-out indices to
             // distinguish "all actors genuinely have zero shapes" (wrong scene) from
             // "something else is broken" (offset or read issue), then hex-dump a
-            // SHAPED actor â€” the one whose layout actually needs validating against
+            // SHAPED actor — the one whose layout actually needs validating against
             // IDA. Falls back to actor[0] only if no shaped actor was ever found.
             if (processed == 0 && actorPtrs.Length > 0)
             {
                 Log.WriteLine(
-                    $"[SceneCache] DIAG zero actors processed â€” " +
+                    $"[SceneCache] DIAG zero actors processed — " +
                     $"non-rigid={skippedNonRigid} zero-shapes={skippedZeroShapes} " +
                     $"read-error={skippedReadError} bad-geometry={skippedBadGeometry}");
 
@@ -1222,7 +1222,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
                 // Full 512-byte hex dump of the first shaped actor. This is the one
                 // whose shape pointer, shape-core pointer, and geometry offsets we
-                // actually need to validate â€” actor[0] often has zero shapes and
+                // actually need to validate — actor[0] often has zero shapes and
                 // tells us nothing useful about the downstream offset chain.
                 if (firstShapedActor != 0)
                 {
@@ -1233,7 +1233,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     // Also follow the shape pointer and dump the NpShape memory so we
                     // can locate the embedded PxShapeCore (PhysX 4.1 stores mCore inline,
                     // not behind a pointer). Auto-scan flags any 4-byte-aligned offset
-                    // whose content looks like {unit quaternion, finite Vec3, geomType âˆˆ [0,6]}.
+                    // whose content looks like {unit quaternion, finite Vec3, geomType ∈ [0,6]}.
                     if (Memory.TryReadPtr(
                             firstShapedActor + PhysXOffsets.PxRigidActor_ShapeManager + PhysXOffsets.NpShapeManager_ShapesSingle,
                             out var shapePtr, false)
@@ -1245,8 +1245,8 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 }
                 else
                 {
-                    // No actor passed the shape pre-check â€” dump actor[0] as a last resort.
-                    Log.WriteLine("[SceneCache] DIAG no shaped actor found â€” falling back to actor[0]");
+                    // No actor passed the shape pre-check — dump actor[0] as a last resort.
+                    Log.WriteLine("[SceneCache] DIAG no shaped actor found — falling back to actor[0]");
                     DumpActorDiagnostics(actorPtrs[0], sampleType);
                 }
             }
@@ -1281,14 +1281,14 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             WorldXformInvalid,
             GeomDataFail,
             /// <summary>
-            /// Geometry is too large to plausibly be a real wall/structure â€”
+            /// Geometry is too large to plausibly be a real wall/structure —
             /// almost certainly a trigger/world-bounds volume that would cause
             /// false-positive visibility blocks. Filtered at cache build time.
             /// </summary>
             OversizedTrigger,
             /// <summary>
             /// Shape's PxShapeFlags indicate a trigger volume or a shape not
-            /// participating in scene queries â€” PhysX's own raycast would skip
+            /// participating in scene queries — PhysX's own raycast would skip
             /// these. Catches railings, foliage, and gameplay-only triggers
             /// that aren't filtered by size alone.
             /// </summary>
@@ -1298,24 +1298,24 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <summary>
         /// Maximum half-extent (metres) for a Box geometry to be treated as real
         /// geometry. Boxes larger than this are almost always map-boundary
-        /// triggers, kill zones, or out-of-bounds volumes â€” they engulf the
+        /// triggers, kill zones, or out-of-bounds volumes — they engulf the
         /// player's position and would block every ray. Arena maps' real walls
-        /// top out around 25 m tall Ã— 25 m long.
+        /// top out around 25 m tall × 25 m long.
         /// </summary>
         private const float MaxRealBoxHalfExtent = 50f;
 
         /// <summary>
         /// Maximum radius (metres) for a Sphere geometry to be treated as real.
-        /// Larger spheres are audio / fog / lighting triggers â€” Bay5 had three
+        /// Larger spheres are audio / fog / lighting triggers — Bay5 had three
         /// 30 m radius spheres scattered around the map blocking everything.
         /// Real spherical physics objects in shooters are barrels, balls,
-        /// canisters â€” all under 2 m radius.
+        /// canisters — all under 2 m radius.
         /// </summary>
         private const float MaxRealSphereRadius = 10f;
 
         /// <summary>
         /// Per-axis maximum (radius or half-height) for a Capsule to be real
-        /// geometry. Game-world capsules are barrels, pillars, low-cover â€” all
+        /// geometry. Game-world capsules are barrels, pillars, low-cover — all
         /// well under 5 m on any dimension. Larger capsules tend to be NPC
         /// detection cones or audio occlusion volumes.
         /// </summary>
@@ -1325,7 +1325,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// Maximum linear dimension (metres) of a TriangleMesh's local AABB
         /// before we treat it as map-spanning terrain rather than a
         /// blocking-vs-vis wall. Verified by live diagnostic: Arena_Prison's
-        /// terrain mesh is 345 Ã— 24 Ã— 440 m and engulfs the playable area â€”
+        /// terrain mesh is 345 × 24 × 440 m and engulfs the playable area —
         /// every ray crosses its bounding volume and gets blocked by an actual
         /// ground triangle. The biggest legitimate building meshes top out
         /// around 35 m on a side, so 100 m is a wide safety margin.
@@ -1354,7 +1354,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 return BuildActorResult.NoShape;
 
             // Filter on PxShapeFlags: keep shapes that PhysX itself would hit
-            // in a raycast â€” those with eSCENE_QUERY_SHAPE set and eTRIGGER_SHAPE
+            // in a raycast — those with eSCENE_QUERY_SHAPE set and eTRIGGER_SHAPE
             // clear. This catches trigger volumes and "ghost" shapes regardless
             // of size, which is the principled fix for railings / signposts /
             // gameplay triggers (the kind of false positives the size filter
@@ -1367,7 +1367,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 if (!isQueryable || isTrigger)
                     return BuildActorResult.TriggerOrNonQueryShape;
             }
-            // If the flags read fails, fall through â€” we'd rather have a
+            // If the flags read fails, fall through — we'd rather have a
             // possibly-spurious actor than drop a real one.
 
             // Read geometry header to know what kind we're dealing with.
@@ -1378,7 +1378,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (!geomType.IsRaycastable() && geomType != PxGeometryType.Box && geomType != PxGeometryType.Capsule)
                 return BuildActorResult.GeomTypeUnsupported;
 
-            // World transform = actor's body-to-world Ã— shape's local pose.
+            // World transform = actor's body-to-world × shape's local pose.
             if (!TryReadActorPose(actorPtr, concrete, out var actorPose) || !actorPose.IsFinite)
                 return BuildActorResult.ActorPoseFail;
             if (!Memory.TryReadValue<PxTransform>(shapeCoreVa + PhysXOffsets.PxShapeCore_LocalPose, out var shapeLocal, false)
@@ -1391,7 +1391,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             // Query filter data: word0 = collision-group bitmask (multi-bit),
             // word1 = shape's Unity layer (one-hot 1<<N). Verified by live
             // SHAPE-COMPARE: word1 column shows clean power-of-2 values across
-            // shapes while word0 is multi-bit. Best-effort reads â€” if any fail
+            // shapes while word0 is multi-bit. Best-effort reads — if any fail
             // we still build the actor with layer=0, the raycaster doesn't
             // strictly require these.
             Memory.TryReadValue<uint>(
@@ -1401,15 +1401,15 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 shapeCoreVa + PhysXOffsets.PxShapeCore_QueryFilterData + PhysXOffsets.FilterData_Word1,
                 out var shapeLayerMask, false);
 
-            // Native chain â€” pull the owning GameObject's name + layer.
+            // Native chain — pull the owning GameObject's name + layer.
             // Best-effort: any step that fails just leaves Name="" / UnityLayer=-1.
             // The visibility filter doesn't need either of these; they're
             // diagnostic / UI features.
             //
-            //   NpShape          + 0x10 â†’ NativeCollider*
-            //   NativeCollider   + 0x58 â†’ NativeGameObject*
-            //   NativeGameObject + 0x68 â†’ NamePtr (ulong â†’ C-string)
-            //   NativeGameObject + ?    â†’ Layer   (int32; probed)
+            //   NpShape          + 0x10 → NativeCollider*
+            //   NativeCollider   + 0x58 → NativeGameObject*
+            //   NativeGameObject + 0x68 → NamePtr (ulong → C-string)
+            //   NativeGameObject + ?    → Layer   (int32; probed)
             //
             // Name is a NamePtr+C-string pair, NOT a std::string. Verified
             // against Unity.cs which has the same layout for managed
@@ -1446,7 +1446,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
                 // Record the GameObject pointer + layer-mask source so the
                 // outer probe can compute a layer-offset histogram once at
-                // the end of the walk. Cap at MaxLayerProbeSamples â€” 256 is
+                // the end of the walk. Cap at MaxLayerProbeSamples — 256 is
                 // plenty of statistical power and keeps DMA cost bounded.
                 if (_layerProbeSamples.Count < MaxLayerProbeSamples
                     && shapeLayerMask != 0
@@ -1466,7 +1466,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     if (!Memory.TryReadValue<float>(geomVa + PhysXOffsets.Sphere_Radius, out var radius, false)
                         || !float.IsFinite(radius) || radius <= 0f)
                         return BuildActorResult.GeomDataFail;
-                    // Drop huge spheres â€” they're audio/lighting/fog triggers.
+                    // Drop huge spheres — they're audio/lighting/fog triggers.
                     if (radius > MaxRealSphereRadius)
                         return BuildActorResult.OversizedTrigger;
                     var aabbMin = worldXform.Position - new Vector3(radius);
@@ -1495,7 +1495,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                         || !float.IsFinite(radius) || radius <= 0f
                         || !float.IsFinite(halfH)  || halfH < 0f)
                         return BuildActorResult.GeomDataFail;
-                    // Drop oversized capsules â€” typically NPC detection / audio volumes.
+                    // Drop oversized capsules — typically NPC detection / audio volumes.
                     if (radius > MaxRealCapsuleDimension || halfH > MaxRealCapsuleDimension)
                         return BuildActorResult.OversizedTrigger;
                     // Conservative world AABB: a sphere of radius (halfH + radius).
@@ -1523,7 +1523,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                         || !float.IsFinite(he.X) || !float.IsFinite(he.Y) || !float.IsFinite(he.Z)
                         || he.X <= 0f || he.Y <= 0f || he.Z <= 0f)
                         return BuildActorResult.GeomDataFail;
-                    // Drop world-bounds / map-boundary triggers â€” these massive boxes
+                    // Drop world-bounds / map-boundary triggers — these massive boxes
                     // engulf the player and cause false-positive visibility blocks.
                     if (he.X > MaxRealBoxHalfExtent || he.Y > MaxRealBoxHalfExtent || he.Z > MaxRealBoxHalfExtent)
                         return BuildActorResult.OversizedTrigger;
@@ -1564,9 +1564,9 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
                     // Filter map-terrain meshes (any linear dimension > MaxRealMeshLinearExtent).
                     // These are the TriangleMesh analog of the world-bounds Box triggers we
-                    // already filter â€” they engulf the playable area and turn every ray into
+                    // already filter — they engulf the playable area and turn every ray into
                     // a false-positive block. Verified on Arena_Prison where the terrain
-                    // mesh is 345 Ã— 24 Ã— 440 m.
+                    // mesh is 345 × 24 × 440 m.
                     var meshSize = meshRef.LocalAabbMax - meshRef.LocalAabbMin;
                     if (meshSize.X > MaxRealMeshLinearExtent
                         || meshSize.Y > MaxRealMeshLinearExtent
@@ -1596,7 +1596,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     // Dump the geometry union for the first few ConvexMesh actors
                     // so we can locate the real PxConvexMesh pointer offset.
                     // Step 1 of D used 0x28 (by analogy with PxTriangleMeshGeometry)
-                    // and 100 % of arena's actors fail validation â€” the actual
+                    // and 100 % of arena's actors fail validation — the actual
                     // pointer is at a different offset in PxConvexMeshGeometry.
                     DumpConvexGeomUnion(geomVa);
 
@@ -1615,7 +1615,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     }
                     var cmRef = convexes[cmIndex];
 
-                    // Same oversize filter as TriangleMesh â€” large convex hulls
+                    // Same oversize filter as TriangleMesh — large convex hulls
                     // that span the whole map are world-bounds, not real cover.
                     var cmSize = cmRef.LocalAabbMax - cmRef.LocalAabbMin;
                     if (cmSize.X > MaxRealMeshLinearExtent
@@ -1891,7 +1891,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     : (Memory.TryReadPtr(ptrTableSingle, out var firstFromArr, false) ? firstFromArr : 0);
                 if (!shapeAddr.IsValidVirtualAddress()) continue;
 
-                // PxShapeCore is embedded inline inside NpShape (PhysX 4.1 layout) â€”
+                // PxShapeCore is embedded inline inside NpShape (PhysX 4.1 layout) —
                 // we ADD the offset, we do NOT dereference a pointer. The previous
                 // pointer-deref interpretation read a member that wasn't a shape core.
                 ulong coreVa = shapeAddr + PhysXOffsets.NpShape_PxShapeCoreOffset;
@@ -1957,7 +1957,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             catch { return false; }
 
             // Local AABB from the cooked mesh header is the cheap path. Some
-            // builds zero it out â€” fall back to scanning vertices in that case.
+            // builds zero it out — fall back to scanning vertices in that case.
             Vector3 localMin, localMax;
             if (!Memory.TryReadValue<Vector3>(meshPtr + PhysXOffsets.TriangleMesh_LocalBoundsMin, out localMin, false)
                 || !Memory.TryReadValue<Vector3>(meshPtr + PhysXOffsets.TriangleMesh_LocalBoundsMax, out localMax, false)
@@ -1998,7 +1998,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         {
             cm = default!;
 
-            // AABB read first â€” same offset as PxTriangleMesh by structural
+            // AABB read first — same offset as PxTriangleMesh by structural
             // analogy, lowest risk of being wrong.
             if (!Memory.TryReadValue<Vector3>(cmPtr + PhysXOffsets.ConvexMesh_AabbMin, out var aMin, false)
                 || !Memory.TryReadValue<Vector3>(cmPtr + PhysXOffsets.ConvexMesh_AabbMax, out var aMax, false)
@@ -2013,7 +2013,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 return false;
             }
 
-            // Counts â€” single-byte fields in ConvexHullData. PhysX limits hull
+            // Counts — single-byte fields in ConvexHullData. PhysX limits hull
             // vertices to 255 and polygons to 64 in the cooker, so the valid
             // ranges below are tight.
             if (!Memory.TryReadValue<byte>(cmPtr + PhysXOffsets.ConvexMesh_NbVertices, out byte nV, false)
@@ -2024,7 +2024,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
             if (nV < 4 || nV > 255 || nP < 4 || nP > 64)
             {
-                DumpConvexMeshHex(cmPtr, $"counts implausible: nV={nV} nP={nP} (expected nVâˆˆ[4,255], nPâˆˆ[4,64])");
+                DumpConvexMeshHex(cmPtr, $"counts implausible: nV={nV} nP={nP} (expected nV∈[4,255], nP∈[4,64])");
                 return false;
             }
 
@@ -2038,12 +2038,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 return false;
             }
 
-            // Bulk-read the vertex array: nV Ã— Vector3 (12 bytes each).
+            // Bulk-read the vertex array: nV × Vector3 (12 bytes each).
             Vector3[] verts;
             try { verts = Memory.ReadArray<Vector3>(vertsPtr, nV, false); }
             catch
             {
-                DumpConvexMeshHex(cmPtr, $"vertex array read failed ({nV} Ã— Vec3 @ 0x{vertsPtr:X})");
+                DumpConvexMeshHex(cmPtr, $"vertex array read failed ({nV} × Vec3 @ 0x{vertsPtr:X})");
                 return false;
             }
             if (verts is null || verts.Length != nV)
@@ -2070,7 +2070,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 float nlen2 = pl.X * pl.X + pl.Y * pl.Y + pl.Z * pl.Z;
                 if (nlen2 < 0.5f || nlen2 > 1.5f)
                 {
-                    DumpConvexMeshHex(cmPtr, $"polygon[{i}] normal not unit-length: |n|Â²={nlen2:F3}");
+                    DumpConvexMeshHex(cmPtr, $"polygon[{i}] normal not unit-length: |n|²={nlen2:F3}");
                     return false;
                 }
                 planes[i] = pl;
@@ -2088,7 +2088,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return true;
         }
 
-        // Diagnostic dump of the geometry union itself â€” separate from the
+        // Diagnostic dump of the geometry union itself — separate from the
         // PxConvexMesh struct dump. Used to locate the real PxConvexMesh*
         // offset within PxConvexMeshGeometry. Capped so the log can't flood.
         private static int _convexGeomUnionDumps;
@@ -2098,7 +2098,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// Dumps the first 64 bytes of <paramref name="geomVa"/>, which is
         /// where PxConvexMeshGeometry sits inside the shape core. The PxGeometry
         /// header (type tag) is at offset 0, then the type-specific fields
-        /// follow â€” somewhere among these 64 bytes is the PxConvexMesh pointer
+        /// follow — somewhere among these 64 bytes is the PxConvexMesh pointer
         /// we need to read. Step-2 correction looks at this dump to choose
         /// the right offset.
         /// </summary>
@@ -2116,7 +2116,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"[SceneCache] ConvexGeomUnion dump #{idx} at 0x{geomVa:X} " +
-                          $"(first 64 bytes of PxConvexMeshGeometry â€” look for a valid heap ptr):");
+                          $"(first 64 bytes of PxConvexMeshGeometry — look for a valid heap ptr):");
             for (int row = 0; row < hex.Length; row += 16)
             {
                 sb.Append($"  +0x{row:X2}  ");
@@ -2125,7 +2125,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 sb.AppendLine();
             }
             // Also pre-interpret each qword as "if this were a pointer, what
-            // would it be" â€” saves an eye-strain step in the analysis.
+            // would it be" — saves an eye-strain step in the analysis.
             sb.AppendLine("  Possible qword interpretations:");
             for (int q = 0; q + 8 <= hex.Length; q += 8)
             {
@@ -2227,12 +2227,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return true;
         }
 
-        // â”€â”€ Geometry helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Geometry helpers ─────────────────────────────────────────────────
 
         /// <summary>
         /// Transforms a local-space AABB by a rigid transform and returns the
         /// (over-conservative) world-space AABB of the result. The classic
-        /// "rotate the 8 corners and take min/max" â€” cheap, no allocation.
+        /// "rotate the 8 corners and take min/max" — cheap, no allocation.
         /// </summary>
         private static (Vector3 min, Vector3 max) TransformOrientedAabb(
             in PxTransform xform, Vector3 localMin, Vector3 localMax)
@@ -2267,7 +2267,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static string Truncate(string s, int max)
         {
             if (string.IsNullOrEmpty(s) || s.Length <= max) return s ?? string.Empty;
-            return string.Concat(s.AsSpan(0, max - 1), "â€¦");
+            return string.Concat(s.AsSpan(0, max - 1), "…");
         }
 
         /// <summary>
@@ -2305,7 +2305,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static bool IsFinite(Vector3 v)
             => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
-        // â”€â”€ Scene survey â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Scene survey ────────────────────────────────────────────────────
 
         /// <summary>
         /// Samples the first 64 actors in <paramref name="scenePtr"/> and counts
@@ -2344,14 +2344,14 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 : (int)((long)shaped * actorCount / sampleN);
         }
 
-        // â”€â”€ Diagnostic dump â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Diagnostic dump ──────────────────────────────────────────────────
 
         /// <summary>
         /// Logs a 512-byte window from <paramref name="actorPtr"/> in 16-byte
         /// rows, then a "shape-array candidate" scan that flags any 8-byte
         /// aligned offset whose neighbouring bytes look like
         /// <c>{ T* mData; u32 mSize; u32 mCapacity; }</c>. Fires only when the
-        /// build couldn't process a single actor â€” gives us enough data to
+        /// build couldn't process a single actor — gives us enough data to
         /// either fix the offset constants in-place or correlate against IDA
         /// without writing more code.
         /// </summary>
@@ -2398,7 +2398,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 uint  cap  = System.BitConverter.ToUInt32(bytes, off + 12);
                 if (!IsLikelyHeapPointer(ptr)) continue;
                 if (size == 0 || size > 16) continue;          // shape count, plausibly small
-                if (cap < size || cap > 64) continue;          // capacity â‰¥ size, not absurd
+                if (cap < size || cap > 64) continue;          // capacity ≥ size, not absurd
                 Log.WriteLine(
                     $"[SceneCache] DIAG   +0x{off:X3}: ptr=0x{ptr:X}  size={size}  capacity={cap}");
                 candidates++;
@@ -2408,7 +2408,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 Log.WriteLine("[SceneCache] DIAG   (no Ps::Array<T*>-shaped triples found in 512 bytes)");
             }
 
-            // Also list any standalone heap pointer in the dump â€” useful if
+            // Also list any standalone heap pointer in the dump — useful if
             // the shape pointer is stored without an inline size/capacity pair.
             Log.WriteLine("[SceneCache] DIAG standalone heap pointers (for cross-reference):");
             int ptrCount = 0;
@@ -2435,7 +2435,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// </summary>
         private static void DumpShapeDiagnostics(ulong shapePtr)
         {
-            const int DumpSize = 0x100; // 256 bytes â€” large enough to span NpShape header + embedded PxShapeCore
+            const int DumpSize = 0x100; // 256 bytes — large enough to span NpShape header + embedded PxShapeCore
             byte[]? bytes = null;
             try { bytes = Memory.ReadArray<byte>(shapePtr, DumpSize, false); } catch { }
             if (bytes is null || bytes.Length != DumpSize)
@@ -2461,8 +2461,8 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
             // Auto-scan for embedded PxShapeCore: a unit-quaternion immediately
             // followed by Vec3 immediately followed by an i32 geometry type in [0, 6].
-            // The first match's offset is the correct NpShape â†’ PxShapeCore offset.
-            Log.WriteLine("[SceneCache] DIAG PxShapeCore candidates (unit quat + Vec3 + geomType âˆˆ [0,6] @ +28):");
+            // The first match's offset is the correct NpShape → PxShapeCore offset.
+            Log.WriteLine("[SceneCache] DIAG PxShapeCore candidates (unit quat + Vec3 + geomType ∈ [0,6] @ +28):");
             int candidates = 0;
             for (int off = 0; off + 32 <= DumpSize; off += 4)
             {
@@ -2479,7 +2479,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 float pz = System.BitConverter.ToSingle(bytes, off + 24);
                 if (!float.IsFinite(px) || !float.IsFinite(py) || !float.IsFinite(pz)) continue;
                 // Reject the obvious noise pattern: all-zero positions next to a "unit"
-                // quaternion that's actually the identity (0,0,0,1) â€” common in unrelated padding.
+                // quaternion that's actually the identity (0,0,0,1) — common in unrelated padding.
                 bool isIdentityAtZero = qx == 0f && qy == 0f && qz == 0f && qw == 1f
                                         && px == 0f && py == 0f && pz == 0f;
 
@@ -2503,7 +2503,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// u32-per-offset comparison of their NpShape memory. The goal: find the
         /// offset where the value varies across shapes as a Unity one-hot layer
         /// mask (1, 2, 4, ..., 0x80000000). That offset is
-        /// <c>simulationFilterData.word0</c> â€” the shape's Unity layer index.
+        /// <c>simulationFilterData.word0</c> — the shape's Unity layer index.
         /// Once identified, we read it during cache build and skip see-through
         /// layers (railings, foliage, signposts), eliminating most remaining
         /// false-positive visibility blocks.
@@ -2526,7 +2526,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
             if (validSamples < 2)
             {
-                Log.WriteLine("[SceneCache] SHAPE-COMPARE skipped â€” fewer than 2 valid samples");
+                Log.WriteLine("[SceneCache] SHAPE-COMPARE skipped — fewer than 2 valid samples");
                 return;
             }
 
@@ -2540,7 +2540,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
             // Body: walk every 4-byte offset, print u32 from each sample.
             // We start at +0x40 so the PxFilterData region (NpShape+0x60..+0x6F per
-            // IDA decompile of setSimulationFilterData) is included â€” that's where
+            // IDA decompile of setSimulationFilterData) is included — that's where
             // the Unity layer one-hot should appear in one of the four u32 words.
             for (int off = 0x40; off + 4 <= DumpSize; off += 4)
             {
@@ -2555,13 +2555,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     if (v != 0 && v < 0x80000001 && (v & (v - 1)) == 0) anyInteresting = true;
                 }
                 // Always print, but tag rows with possible layer-mask values for easy spotting.
-                Log.WriteLine($"[SceneCache]{row}{(anyInteresting ? "  â† power-of-2 candidate" : "")}");
+                Log.WriteLine($"[SceneCache]{row}{(anyInteresting ? "  ← power-of-2 candidate" : "")}");
             }
         }
 
         /// <summary>
         /// Cheap-and-cheerful "could this be a Windows-userland heap pointer?"
-        /// test â€” high enough to escape sentinel zones, not so high that it's
+        /// test — high enough to escape sentinel zones, not so high that it's
         /// a kernel address. Excludes pointers that point inside UnityPlayer.dll
         /// itself (those are not what we're hunting for here).
         /// </summary>
@@ -2569,7 +2569,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         {
             if (!Misc.Utils.IsValidVirtualAddress(p)) return false;
             // Reject pointers that fall inside UnityPlayer.dll's mapped range
-            // â€” those are vtables / globals, not heap-allocated members.
+            // — those are vtables / globals, not heap-allocated members.
             ulong unityBase = Memory.UnityBase;
             if (unityBase != 0)
             {

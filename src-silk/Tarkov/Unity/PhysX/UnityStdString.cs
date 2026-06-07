@@ -6,18 +6,18 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// <summary>
     /// Shared reader for Unity-flavoured <c>std::string</c> values (libc++-style
     /// with short-string optimization). The discriminator byte at <c>+0x1F</c>
-    /// selects between the in-place SSO buffer (small strings, â‰¤30 chars) and
+    /// selects between the in-place SSO buffer (small strings, ≤30 chars) and
     /// a heap-allocated long string (pointer at <c>+0x00</c>, length at <c>+0x10</c>).
     /// <para>
-    /// Used in multiple places â€” originally for TagManager layer names, now
+    /// Used in multiple places — originally for TagManager layer names, now
     /// also for per-actor <c>GameObject.name</c> values (Marcel's
-    /// <c>NpShapeâ†’NativeColliderâ†’NativeGameObject</c> chain). Extracted to its
+    /// <c>NpShape→NativeCollider→NativeGameObject</c> chain). Extracted to its
     /// own type so the layout knowledge has one home and isn't duplicated.
     /// </para>
     /// </summary>
     internal static class UnityStdString
     {
-        // Maximum reasonable length â€” guards against garbage-pointer reads.
+        // Maximum reasonable length — guards against garbage-pointer reads.
         // Unity GameObject names are typically &lt; 64 chars in practice; we
         // allow 256 to handle long generated names ("MeshCollider (instance) (...)")
         // without truncation.
@@ -40,7 +40,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
             if (flag >= 0x40)
             {
-                // LONG MODE â€” data pointer at +0x00, length at +0x10.
+                // LONG MODE — data pointer at +0x00, length at +0x10.
                 if (!Memory.TryReadValue<ulong>(slotAddr + PhysXOffsets.StdString_Length, out var lenRaw, false)
                     || lenRaw > (ulong)MaxLength)
                     return null;
@@ -53,7 +53,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
             else
             {
-                // SSO MODE â€” length = 31 - flag, data is in-place from +0x00.
+                // SSO MODE — length = 31 - flag, data is in-place from +0x00.
                 length = 31 - flag;
                 if (length < 0 || length > 31) return null;
                 if (length == 0) return string.Empty;
@@ -79,7 +79,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             {
                 byte b = bytes[i];
                 if (b == 0) break;
-                if (b < 0x20 || b > 0x7E) return string.Empty; // unprintable â‡’ wrong memory
+                if (b < 0x20 || b > 0x7E) return string.Empty; // unprintable ⇒ wrong memory
                 sb.Append((char)b);
             }
             return sb.ToString();

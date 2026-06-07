@@ -11,13 +11,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// <para>
     /// Renders every <see cref="CachedActor"/>'s world AABB as a magenta
     /// wireframe box, viewed through a free-fly camera. Pairs with the
-    /// text-based <see cref="VisCheckDebugWindow"/> overlay â€” the text
+    /// text-based <see cref="VisCheckDebugWindow"/> overlay — the text
     /// view tells you *what's* in the cache, this view tells you *where*
     /// it is in the world. Most "ray says blocked but I think it
     /// shouldn't be" investigations need both.
     /// </para>
     /// <para>
-    /// Toggled with <b>F12</b>. Lives entirely inside ImGui â€” no
+    /// Toggled with <b>F12</b>. Lives entirely inside ImGui — no
     /// dedicated GL context, no shaders, no VBOs. World-to-screen is
     /// done in C# with <see cref="Matrix4x4"/>, lines are emitted via
     /// <c>ImDrawList::AddLine</c>. This keeps the surface area tiny and
@@ -27,7 +27,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// </para>
     /// <para>
     /// Performance budget: AABB-only render is one 12-line call per
-    /// cached actor â€” at ~10k actors that's 120k lines per frame, well
+    /// cached actor — at ~10k actors that's 120k lines per frame, well
     /// within ImGui's draw budget on a desktop GPU. The "Range" slider
     /// adds a distance cull so dense maps stay responsive even at
     /// short-range fly-throughs.
@@ -35,16 +35,16 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// </summary>
     internal static class CacheViewWindow
     {
-        // â”€â”€ Visibility / toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Visibility / toggle ──────────────────────────────────────────────
 
         public static bool IsVisible { get; set; }
         public static void Toggle() => IsVisible = !IsVisible;
 
-        // â”€â”€ Camera state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Camera state ─────────────────────────────────────────────────────
         //
         // Right-handed coords, +Y up. Yaw rotates around +Y (azimuth),
         // pitch rotates around the camera's local right axis (elevation).
-        // Initial position is "above origin, looking forward" â€” works
+        // Initial position is "above origin, looking forward" — works
         // until the user clicks "Go to local player" or moves around.
 
         private static Vector3 _camPos       = new(0f, 5f, 0f);
@@ -54,16 +54,16 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private const  float   _camNear      = 0.1f;
         private const  float   _camFar       = 5000f;
         private static float   _moveSpeed    = 12f;      // metres / second
-        private static float   _renderRange  = 200f;     // metres â€” distance cull radius
+        private static float   _renderRange  = 200f;     // metres — distance cull radius
 
-        // â”€â”€ Rendering options â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Rendering options ────────────────────────────────────────────────
 
         private static bool _showActors      = true;     // AABB wireframes for every CachedActor
         private static bool _highlightLocal  = true;     // green X at local-player position
         private static bool _hideSeeThrough  = false;    // skip drawing actors classified as see-through
         private static bool _distanceFade    = true;     // alpha falls off with distance for depth perception
 
-        // Per-geometry-type filters â€” checkboxes in the sidebar so the user
+        // Per-geometry-type filters — checkboxes in the sidebar so the user
         // can isolate (say) just triangle meshes when looking for a specific
         // wall, or just box colliders to find world-bounds.
         private static bool _showSphere      = true;
@@ -73,42 +73,42 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static bool _showTriMesh     = true;
         private static bool _showHeightField = true;
 
-        // â”€â”€ Shape rendering (real geometry vs AABB) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Shape rendering (real geometry vs AABB) ──────────────────────────
         //
         // When _renderTrueShapes is on, each actor renders with type-specific
         // wireframes instead of its AABB:
-        //   Sphere    â†’ three great circles
-        //   Capsule   â†’ cylinder body + 2 hemisphere caps oriented by quaternion
-        //   Box       â†’ 8 corners rotated by WorldTransform = oriented bounding box
-        //   Convex    â†’ face polygons (vertices coplanar with each polygon plane)
-        //   TriMesh   â†’ actual triangle edges (gated by _triMeshBudget)
-        //   HeightField â†’ grid lines sampled at _hfStep stride
+        //   Sphere    → three great circles
+        //   Capsule   → cylinder body + 2 hemisphere caps oriented by quaternion
+        //   Box       → 8 corners rotated by WorldTransform = oriented bounding box
+        //   Convex    → face polygons (vertices coplanar with each polygon plane)
+        //   TriMesh   → actual triangle edges (gated by _triMeshBudget)
+        //   HeightField → grid lines sampled at _hfStep stride
         // AABB is the universal fallback when data is missing or budget exceeded.
         private static bool _renderTrueShapes = true;
-        private static int  _triMeshBudget    = 1500; // > N triangles â†’ fallback to AABB
+        private static int  _triMeshBudget    = 1500; // > N triangles → fallback to AABB
         private static int  _hfStep           = 4;    // height-field grid stride
-        private static bool _convexFaces      = true; // off â†’ fallback AABB for convex meshes
+        private static bool _convexFaces      = true; // off → fallback AABB for convex meshes
 
-        // â”€â”€ Actor filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // Name substring filter â€” empty = show all actors.
+        // ── Actor filter ─────────────────────────────────────────────────────
+        // Name substring filter — empty = show all actors.
         private static string _nameFilter         = "";
-        // Layer display filter â€” bit N set = show actors whose ShapeLayerMask
+        // Layer display filter — bit N set = show actors whose ShapeLayerMask
         // overlaps layer N. All bits set = show all layers (default).
         private static uint   _layerDisplayFilter = uint.MaxValue;
 
         /// <summary>
         /// Primary visibility-class filter. <c>All</c> shows every actor that
         /// passes the other gates, <c>BlockersOnly</c> hides everything
-        /// classified as see-through (the high-signal "real cover" view â€”
+        /// classified as see-through (the high-signal "real cover" view —
         /// derived from the live snapshot's name-pattern logs that showed
         /// glass / cube props dominate the see-through set), and
-        /// <c>SeeThroughOnly</c> is the inverse â€” useful when tuning the
+        /// <c>SeeThroughOnly</c> is the inverse — useful when tuning the
         /// classifier rules to confirm what currently gets filtered out.
         /// </summary>
         private enum VisFilterMode { All, BlockersOnly, SeeThroughOnly }
         private static VisFilterMode _visFilter = VisFilterMode.All;
 
-        // BSG's own marker for shootable-through-blocking world geometry â€”
+        // BSG's own marker for shootable-through-blocking world geometry —
         // the snapshot logs showed 86 % of layer-12 blockers on Arena_Prison
         // carry "_BALLISTIC_" in the name. A one-checkbox high-precision
         // cover filter is more useful than fighting the layer grid.
@@ -120,7 +120,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static readonly HashSet<string> _hiddenBuckets =
             new(StringComparer.OrdinalIgnoreCase);
 
-        // Bucket table cache â€” rebuilt only when the snapshot reference changes
+        // Bucket table cache — rebuilt only when the snapshot reference changes
         // (snapshots are atomically swapped, so reference-equality is enough).
         // Without this cache we'd re-scan 7k+ actor names every frame.
         private static SceneSnapshot? _bucketSnapshotRef;
@@ -128,34 +128,34 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static List<(string Bucket, int Count)> _bucketsBlockers = new();
         private static string _bucketFilter = ""; // substring filter for the bucket table
 
-        // â”€â”€ Vis-check overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Vis-check overlay ─────────────────────────────────────────────────
         private static bool _highlightBlockers = true;  // orange outline around blocking actors
-        private static bool _showLiveRays      = false; // draw eye â†’ player rays from last tick
+        private static bool _showLiveRays      = false; // draw eye → player rays from last tick
 
-        // â”€â”€ Live player overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // Turns the wireframe cache view into a usable 3D radar â€” enemy
+        // ── Live player overlay ──────────────────────────────────────────────
+        // Turns the wireframe cache view into a usable 3D radar — enemy
         // positions are drawn as ground-anchored marker columns the same way
         // most 3D radars do it, so the user can correlate cover geometry
         // with enemy lines-of-sight at a glance.
         private static bool  _showPlayers      = true;
         private static bool  _showPlayerNames  = true;
         private static bool  _dimVisiblePlayers = false; // when on, players already visible to LP draw at half alpha
-        private static float _playerMarkerHeight = 1.8f; // metres â€” drawn as a vertical line from feet up
+        private static float _playerMarkerHeight = 1.8f; // metres — drawn as a vertical line from feet up
 
-        // â”€â”€ Live PhysX overlay (PlayerSuperior + Base Human bones) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Live PhysX overlay (PlayerSuperior + Base Human bones) ───────────
         // The snapshot already contains capsule actors named "PlayerSuperior(Clone)"
-        // (player bodies, layer 8 on Arena_Bay5 â€” varies per map) and
-        // "Base Human*" (bones â€” head, calves, thighs, etc.). They render
+        // (player bodies, layer 8 on Arena_Bay5 — varies per map) and
+        // "Base Human*" (bones — head, calves, thighs, etc.). They render
         // correctly in the regular wireframe pass but use the snapshot-build-time
         // pose, so they appear frozen. This overlay re-reads each tracked
         // actor's NpRigidDynamic_BufferedBody2World transform every render
         // tick (rate-limited) and re-draws the capsule + bone skeleton at
-        // live positions â€” turning the cache view into a PhysX-sourced 3D
+        // live positions — turning the cache view into a PhysX-sourced 3D
         // radar that doesn't depend on the IL2CPP / managed player list.
         private static bool _showLivePhysxPlayers = false;
         private static bool _showLivePhysxBones   = false;
-        // 100 ms = 10 Hz refresh â€” enough for radar-style tracking, low
-        // enough that 8 players Ã— 17 capsules each (1 body + 16 bones) at
+        // 100 ms = 10 Hz refresh — enough for radar-style tracking, low
+        // enough that 8 players × 17 capsules each (1 body + 16 bones) at
         // ~100 reads per refresh stays well under the budget of every other
         // worker.
         private const int LivePhysxRefreshMs = 100;
@@ -164,13 +164,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static SceneSnapshot? _livePhysxSnapshotRef;
         private static readonly List<int> _livePhysxPlayerIndices = new();
         private static readonly List<int> _livePhysxBoneIndices   = new();
-        // Live pose dict â€” indexed by snapshot-relative actor index. Stays
+        // Live pose dict — indexed by snapshot-relative actor index. Stays
         // valid across snapshot swaps because the index lists are rebuilt at
         // the same time and stale entries simply never get re-read.
         private static readonly Dictionary<int, PxTransform> _livePhysxPoses = new();
         // Per-actor transform-offset cache. Reading PxConcreteType once per
         // actor is far cheaper than scanning both candidate offsets every
-        // refresh â€” and the first attempt at the wrong offset previously
+        // refresh — and the first attempt at the wrong offset previously
         // produced invalid poses that the validity gate silently dropped
         // (the symptom the user hit: PlayerSuperior worked because the
         // 0x140 dynamic offset was right, but Base Human bones returned
@@ -181,17 +181,17 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         // actor pointers each refresh.
         private const uint LivePhysxOffsetFailed = 0xFFFFFFFFu;
         private static long _livePhysxLastRefreshMs;
-        // Cosmetic settings â€” kept distinct from the regular wireframe colour
+        // Cosmetic settings — kept distinct from the regular wireframe colour
         // scheme so the live capsules stand out against the cached geometry.
         private const uint ColorLivePhysxPlayer = 0xFF40FFFFu; // cyan
         private const uint ColorLivePhysxBone   = 0xFF40FF40u; // green
 
-        // â”€â”€ IL2CPP skeleton overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── IL2CPP skeleton overlay ──────────────────────────────────────────
         // The PhysX bone capsules path above relies on PhysX-side rigid bodies
         // that may or may not exist for every player (engine-dependent). The
         // managed-side Skeleton (Player.Skeleton.GetBonePosition) is always
         // populated for every active player by the camera worker's batch
-        // scatter â€” so this overlay is the reliable per-player skeleton in
+        // scatter — so this overlay is the reliable per-player skeleton in
         // 3D, even when the PhysX bones path comes up dry.
         private static bool _showSkeletonBones = false;
         // Dots at each joint in addition to the line skeleton. Off by default
@@ -204,7 +204,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <summary>
         /// How the wireframe colour is chosen per actor.
         /// <list type="bullet">
-        ///   <item><c>Uniform</c>: every actor in magenta â€” the classic
+        ///   <item><c>Uniform</c>: every actor in magenta — the classic
         ///     debug-overlay look, simple and dense.</item>
         ///   <item><c>SeeThrough</c>: blockers magenta, see-through actors a
         ///     dimmer amber so you can scan for wrongly-filtered colliders.</item>
@@ -217,24 +217,24 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static ColorMode _colorMode = ColorMode.SeeThrough;
 
         // Base colours (RGBA8 packed, ImGui-friendly: 0xAABBGGRR).
-        private const uint ColorActorAabb        = 0xFFFF00FFu;  // magenta â€” uniform / blocker
+        private const uint ColorActorAabb        = 0xFFFF00FFu;  // magenta — uniform / blocker
         private const uint ColorSeeThroughAabb   = 0x80E0C040u;  // dim amber for see-through
         private const uint ColorTypeSphere       = 0xFF40FFFFu;  // cyan
         private const uint ColorTypeCapsule      = 0xFF40FF80u;  // green
         private const uint ColorTypeBox          = 0xFFFF8040u;  // orange
         private const uint ColorTypeConvex       = 0xFFFF40FFu;  // pink
-        private const uint ColorTypeTriMesh      = 0xFFFF00FFu;  // magenta (most common â€” match Uniform)
+        private const uint ColorTypeTriMesh      = 0xFFFF00FFu;  // magenta (most common — match Uniform)
         private const uint ColorTypeHF           = 0xFF8080FFu;  // soft blue
         private const uint ColorBackground       = 0xFF000000u;  // black
         private const uint ColorTextPrimary      = 0xFFCCCCCCu;
         private const uint ColorTextSecondary    = 0xFF808080u;
         private const uint ColorLocalPlayer      = 0xFF66FF66u;  // green crosshair
-        private const uint ColorHoverHighlight   = 0xFF00FFFFu;  // cyan â€” selected actor outline
-        private const uint ColorBlockerHighlight = 0xFF0080FFu;  // orange â€” actor blocking a sightline
+        private const uint ColorHoverHighlight   = 0xFF00FFFFu;  // cyan — selected actor outline
+        private const uint ColorBlockerHighlight = 0xFF0080FFu;  // orange — actor blocking a sightline
         private const uint ColorRayVisible       = 0x6044CC44u;  // semi-transparent green ray
         private const uint ColorRayBlocked       = 0x603232C8u;  // semi-transparent red ray
 
-        // Player marker colours â€” neutral debug palette so we don't have to
+        // Player marker colours — neutral debug palette so we don't have to
         // chase team-colour state across player kinds. Local = green, enemy
         // = red. _dimVisiblePlayers halves the alpha when the visibility
         // worker has marked the player as visible from the local eye.
@@ -252,7 +252,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         // projected centre.
         private const float HoverPickMaxPxSq = 24f * 24f;
 
-        // â”€â”€ Frame entry point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Frame entry point ────────────────────────────────────────────────
 
         /// <summary>Called every UI frame from <see cref="UI.RadarWindow"/>'s draw pass.</summary>
         public static void Draw()
@@ -264,7 +264,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             ImGui.SetNextWindowSizeConstraints(new Vector2(640f, 360f), io.DisplaySize);
 
             bool open = IsVisible;
-            if (!ImGui.Begin("Cache View â€” PhysX wireframe", ref open,
+            if (!ImGui.Begin("Cache View — PhysX wireframe", ref open,
                 ImGuiWindowFlags.NoCollapse))
             {
                 IsVisible = open;
@@ -304,7 +304,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ 3D viewport â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── 3D viewport ──────────────────────────────────────────────────────
 
         private static void DrawViewport()
         {
@@ -332,10 +332,10 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             var dl = ImGui.GetWindowDrawList();
             dl.AddRectFilled(vpOrigin, vpOrigin + vpSize, ColorBackground);
 
-            // â”€â”€ Wireframe pass â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Wireframe pass ────────────────────────────────
             //
             // While drawing we also track the actor whose centre projects
-            // closest to the mouse cursor â€” that's the tooltip target.
+            // closest to the mouse cursor — that's the tooltip target.
             int drawn = 0, culled = 0;
             float rangeSq = _renderRange * _renderRange;
 
@@ -357,7 +357,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     if (!PassesTypeFilter(a.GeometryType))      { culled++; continue; }
                     // Legacy "Hide see-through" checkbox is kept in addition
                     // to the new tri-state VisFilter so existing muscle memory
-                    // still works â€” both gates have to pass.
+                    // still works — both gates have to pass.
                     if (_hideSeeThrough && a.IsSeeThrough)      { culled++; continue; }
                     if (!PassesVisFilter(a.IsSeeThrough))       { culled++; continue; }
                     if (_ballisticOnly
@@ -391,7 +391,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 }
             }
 
-            // â”€â”€ Hover highlight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Hover highlight ───────────────────────────────
             // Redraw the picked AABB on top in cyan with thicker lines.
             if (hoverPick is not null)
             {
@@ -399,7 +399,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                               viewProj, vpOrigin, vpSize, ColorHoverHighlight, 2.0f);
             }
 
-            // â”€â”€ Blocker highlight pass â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Blocker highlight pass ────────────────────────
             // Orange thick outlines around actors that blocked a sightline
             // in the last worker tick. Drawn after hover so hover still wins.
             if (blockerSet is not null)
@@ -413,8 +413,8 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 }
             }
 
-            // â”€â”€ Live ray pass â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            // Eye â†’ each-player lines from the last VisibilityWorker tick.
+            // ── Live ray pass ─────────────────────────────────
+            // Eye → each-player lines from the last VisibilityWorker tick.
             // Green = player was visible; red = blocked.
             if (_showLiveRays)
             {
@@ -441,11 +441,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 }
             }
 
-            // â”€â”€ Live player overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            // 3D radar â€” enemy + local positions as ground-anchored vertical
+            // ── Live player overlay ───────────────────────────
+            // 3D radar — enemy + local positions as ground-anchored vertical
             // bars with a head dot. Drawn after the wireframe + blocker passes
             // so player markers always end up on top of geometry. Reads the
-            // realtime worker's already-populated player list â€” zero extra DMA.
+            // realtime worker's already-populated player list — zero extra DMA.
             if (_showPlayers)
             {
                 var gw = Memory.Game;
@@ -459,8 +459,8 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 }
             }
 
-            // â”€â”€ Live PhysX overlay (player capsules + bones) â”€â”€
-            // PhysX-direct player tracking â€” re-reads the buffered
+            // ── Live PhysX overlay (player capsules + bones) ──
+            // PhysX-direct player tracking — re-reads the buffered
             // body-to-world transform of every "PlayerSuperior(Clone)" +
             // "Base Human*" capsule and re-renders it at the live pose.
             // Index lists + pose cache rebuilt on snapshot change; refresh
@@ -472,11 +472,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 DrawLivePhysxOverlay(dl, snap, viewProj, vpOrigin, vpSize);
             }
 
-            // â”€â”€ IL2CPP skeleton overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            // No DMA â€” projects already-populated bone positions.
+            // ── IL2CPP skeleton overlay ──────────────────────
+            // No DMA — projects already-populated bone positions.
             DrawSkeletonOverlay(dl, viewProj, vpOrigin, vpSize);
 
-            // â”€â”€ Tooltip on hover â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Tooltip on hover ──────────────────────────────
             if (hoverPick is not null)
             {
                 Vector3 c  = (hoverPick.WorldAabbMin + hoverPick.WorldAabbMax) * 0.5f;
@@ -491,11 +491,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 ImGui.Text($"Layer:    {hoverPick.UnityLayer} (mask 0x{hoverPick.ShapeLayerMask:X})");
                 ImGui.Text($"Geometry: {hoverPick.GeometryType}");
                 ImGui.Text($"Center:   ({c.X:F1}, {c.Y:F1}, {c.Z:F1})");
-                ImGui.Text($"Size:     {sz.X:F1} Ã— {sz.Y:F1} Ã— {sz.Z:F1}");
+                ImGui.Text($"Size:     {sz.X:F1} × {sz.Y:F1} × {sz.Z:F1}");
                 ImGui.Text($"Distance: {Vector3.Distance(_camPos, c):F1} m");
                 ImGui.Text($"Actor:    0x{hoverPick.ActorBase:X}");
                 if (blockerSet?.Contains(hoverPickIdx) == true)
-                    ImGui.TextColored(new Vector4(1f, 0.5f, 0.1f, 1f), "BLOCKER â€” blocking a player sightline");
+                    ImGui.TextColored(new Vector4(1f, 0.5f, 0.1f, 1f), "BLOCKER — blocking a player sightline");
                 if (hoverPick.IsSeeThrough)
                 {
                     string reason = VisibilityClassifier.Explain(
@@ -503,7 +503,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                         hoverPick.ShapeLayerMask,
                         hoverPick.Name);
                     ImGui.TextColored(new Vector4(0.95f, 0.85f, 0.20f, 1f),
-                        $"See-through: YES â€” matched {reason}");
+                        $"See-through: YES — matched {reason}");
                 }
                 else
                 {
@@ -513,7 +513,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 ImGui.EndTooltip();
             }
 
-            // â”€â”€ Local-player marker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Local-player marker ──────────────────────────
             if (_highlightLocal)
             {
                 var lp = Memory.Game?.LocalPlayer;
@@ -524,12 +524,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 }
             }
 
-            // â”€â”€ HUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── HUD ──────────────────────────────────────────
             string hudStats =
                 $"{snap.Actors.Length} actors  drawn={drawn} culled={culled}  " +
-                $"fov={_camFov:F0}Â°  range={_renderRange:F0}m  " +
+                $"fov={_camFov:F0}°  range={_renderRange:F0}m  " +
                 $"pos=({_camPos.X:F1}, {_camPos.Y:F1}, {_camPos.Z:F1})  " +
-                $"yaw={_camYaw * 180f / MathF.PI:F0}Â° pitch={_camPitch * 180f / MathF.PI:F0}Â°";
+                $"yaw={_camYaw * 180f / MathF.PI:F0}° pitch={_camPitch * 180f / MathF.PI:F0}°";
             dl.AddText(vpOrigin + new Vector2(8f, 8f), ColorTextPrimary, hudStats);
 
             const string hint = "[RMB drag] look   [WASD] move   [Space/Ctrl] up/down   [Shift] sprint";
@@ -537,7 +537,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             dl.AddText(vpOrigin + new Vector2(8f, vpSize.Y - hintSize.Y - 8f), ColorTextSecondary, hint);
         }
 
-        // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Sidebar ──────────────────────────────────────────────────────────
 
         private static void DrawSidebar()
         {
@@ -570,7 +570,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static void DrawCameraSection()
         {
             ImGui.TextDisabled("Camera");
-            ImGui.SliderFloat("FOV",   ref _camFov,      30f, 110f,  "%.0fÂ°");
+            ImGui.SliderFloat("FOV",   ref _camFov,      30f, 110f,  "%.0f°");
             ImGui.SliderFloat("Range", ref _renderRange, 20f, 2000f, "%.0f m");
             ImGui.SliderFloat("Speed", ref _moveSpeed,   1f,  60f,   "%.0f m/s");
 
@@ -601,7 +601,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 ImGui.SetTooltip(
                     "Jump the camera to the snapshot's geometry centre and\n" +
                     "set Range to cover the whole map. Essential after loading\n" +
-                    "a snapshot offline â€” the camera otherwise stays at world\n" +
+                    "a snapshot offline — the camera otherwise stays at world\n" +
                     "origin while geometry lives far away in map coordinates.");
         }
 
@@ -634,7 +634,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             float offset   = MathF.Max(20f, maxExt * 0.4f);
 
             // Sit above and to the +Z side of the centre, looking back toward
-            // it at ~45Â° downward (yaw = Ï€ faces -Z, pitch = -Ï€/4 tilts down).
+            // it at ~45° downward (yaw = π faces -Z, pitch = -π/4 tilts down).
             _camPos      = new Vector3(center.X, center.Y + offset, center.Z + offset);
             _camYaw      = MathF.PI;
             _camPitch    = -MathF.PI / 4f;
@@ -664,7 +664,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 if (ImGui.IsItemHovered())
                     ImGui.SetTooltip(
                         "Triangle meshes above this count fall back to AABB.\n" +
-                        "Buildings can be 10k+ triangles each â€” drawing them all\n" +
+                        "Buildings can be 10k+ triangles each — drawing them all\n" +
                         "is honest but slow. Raise to inspect a specific mesh.");
                 ImGui.SliderInt("HF step", ref _hfStep, 1, 16);
                 if (ImGui.IsItemHovered())
@@ -699,7 +699,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         {
             ImGui.TextDisabled("Actor Filter");
 
-            // â”€â”€ Presets row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Presets row ─────────────────────────────────────────────────
             // One-click jump to common filter combinations derived from real
             // log analysis. "Cover only" hides see-through (glass/cubes/etc.)
             // and turns on BALLISTIC, which together drop the snapshot from
@@ -710,7 +710,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip(
                     "Blockers-only + BALLISTIC. Cuts the snapshot to actors that\n" +
-                    "actually stop bullets â€” empirically ~30 % of the total.");
+                    "actually stop bullets — empirically ~30 % of the total.");
             ImGui.SameLine();
             if (ImGui.SmallButton("Walls##fp"))    ApplyPreset_Walls();
             if (ImGui.IsItemHovered())
@@ -722,10 +722,10 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (ImGui.SmallButton("Debug see-thru##fp")) ApplyPreset_SeeThroughDebug();
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip(
-                    "Inverse view â€” only actors classified as see-through.\n" +
+                    "Inverse view — only actors classified as see-through.\n" +
                     "Use when tuning classifier rules to spot false positives.");
 
-            // â”€â”€ Vis-class tri-state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Vis-class tri-state ─────────────────────────────────────────
             int vfm = (int)_visFilter;
             ImGui.Text("Show:");
             ImGui.SameLine();
@@ -735,24 +735,24 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             ImGui.SameLine();
             if (ImGui.RadioButton("See-thru##vfm",  ref vfm, 2)) _visFilter = (VisFilterMode)vfm;
 
-            // â”€â”€ BALLISTIC quick filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── BALLISTIC quick filter ──────────────────────────────────────
             ImGui.Checkbox("Only BALLISTIC", ref _ballisticOnly);
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip(
-                    "Show only actors whose name contains \"BALLISTIC\" â€” BSG's own\n" +
+                    "Show only actors whose name contains \"BALLISTIC\" — BSG's own\n" +
                     "marker for shootable-through-blocking world geometry.\n" +
                     "On Arena_Prison this matches ~2300 of ~2700 layer-12 walls.");
 
-            // â”€â”€ Substring filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Substring filter ────────────────────────────────────────────
             float avail = ImGui.GetContentRegionAvail().X;
             ImGui.SetNextItemWidth(avail);
-            ImGui.InputTextWithHint("##name_filter", "name containsâ€¦", ref _nameFilter, 128);
+            ImGui.InputTextWithHint("##name_filter", "name contains…", ref _nameFilter, 128);
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip(
-                    "Case-insensitive substring â€” only actors whose name contains\n" +
+                    "Case-insensitive substring — only actors whose name contains\n" +
                     "this text are drawn. Clear to show all.");
 
-            // â”€â”€ Layer grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Layer grid ──────────────────────────────────────────────────
             ImGui.TextDisabled("Layer display filter (orange=shown, dark=hidden):");
             for (int row = 0; row < 4; row++)
             {
@@ -768,8 +768,8 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                         _layerDisplayFilter ^= 1u << bit;
                     if (ImGui.IsItemHovered())
                         ImGui.SetTooltip($"Layer {bit}\n" +
-                            (isSet ? "Shown â€” actors on this layer are drawn"
-                                   : "Hidden â€” actors on this layer are culled"));
+                            (isSet ? "Shown — actors on this layer are drawn"
+                                   : "Hidden — actors on this layer are culled"));
                     ImGui.PopStyleColor(2);
                     ImGui.PopID();
                 }
@@ -781,7 +781,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             ImGui.SameLine();
             if (ImGui.SmallButton("Invert##ldf")) _layerDisplayFilter = ~_layerDisplayFilter;
 
-            // â”€â”€ Name-prefix buckets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Name-prefix buckets ─────────────────────────────────────────
             DrawBucketSubsection();
         }
 
@@ -797,7 +797,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         {
             var snap = SceneCache.Snapshot;
             RebuildBucketCacheIfStale(snap);
-            // Pick the source bucket list â€” when in BlockersOnly the per-bucket
+            // Pick the source bucket list — when in BlockersOnly the per-bucket
             // counts should reflect that filter (otherwise the user sees "1159
             // glass" and can't tell which fraction is real cover).
             var src = _visFilter == VisFilterMode.BlockersOnly
@@ -809,7 +809,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
             float fw = ImGui.GetContentRegionAvail().X;
             ImGui.SetNextItemWidth(fw);
-            ImGui.InputTextWithHint("##bucket_filter", "filter bucketsâ€¦", ref _bucketFilter, 64);
+            ImGui.InputTextWithHint("##bucket_filter", "filter buckets…", ref _bucketFilter, 64);
 
             if (ImGui.SmallButton("Show all##nb"))   _hiddenBuckets.Clear();
             ImGui.SameLine();
@@ -821,7 +821,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             ImGui.SameLine();
             ImGui.TextDisabled($"hidden={_hiddenBuckets.Count}");
 
-            // Scrollable table â€” 6 rows fit comfortably without forcing a
+            // Scrollable table — 6 rows fit comfortably without forcing a
             // double-scrollbar layout. The sidebar's outer scroll handles
             // overflow when the bucket count is large.
             if (ImGui.BeginTable("##bktbl", 3,
@@ -865,7 +865,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             ImGui.TreePop();
         }
 
-        // â”€â”€ Filter helpers / presets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Filter helpers / presets ────────────────────────────────────────
 
         private static void ApplyPreset_Reset()
         {
@@ -889,7 +889,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         {
             ApplyPreset_Reset();
             _visFilter          = VisFilterMode.BlockersOnly;
-            _layerDisplayFilter = 1u << 12; // only layer 12 â€” world geometry
+            _layerDisplayFilter = 1u << 12; // only layer 12 — world geometry
         }
 
         private static void ApplyPreset_SeeThroughDebug()
@@ -916,10 +916,10 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// first underscore / space / paren / digit. Empirically this gives
         /// useful groupings on Arena_Prison:
         /// <list type="bullet">
-        ///   <item><c>Prison_metal_*</c> â†’ "Prison"</item>
-        ///   <item><c>Fort_Wall_*</c>    â†’ "Fort"</item>
-        ///   <item><c>Cube (12)</c>      â†’ "Cube"</item>
-        ///   <item><c>glass</c>          â†’ "glass"</item>
+        ///   <item><c>Prison_metal_*</c> → "Prison"</item>
+        ///   <item><c>Fort_Wall_*</c>    → "Fort"</item>
+        ///   <item><c>Cube (12)</c>      → "Cube"</item>
+        ///   <item><c>glass</c>          → "glass"</item>
         /// </list>
         /// </summary>
         private static string ExtractBucket(string? name)
@@ -938,7 +938,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// Rebuilds the cached bucket lists when (and only when) the snapshot
         /// reference changes. ReferenceEquals works here because <see cref="SceneCache"/>
         /// publishes new snapshots via <c>Volatile.Write</c> with a single ref
-        /// swap â€” same reference means same content, period.
+        /// swap — same reference means same content, period.
         /// </summary>
         private static void RebuildBucketCacheIfStale(SceneSnapshot snap)
         {
@@ -977,7 +977,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip(
                     "Overlay live enemy + local-player positions as vertical\n" +
-                    "marker columns. Reads Memory.Game.Players â€”\n" +
+                    "marker columns. Reads Memory.Game.Players —\n" +
                     "no extra DMA work, the realtime worker already populates it.");
 
             if (_showPlayers)
@@ -995,7 +995,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 ImGui.Unindent();
             }
 
-            // â”€â”€ Live PhysX overlay sub-section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Live PhysX overlay sub-section ──────────────────────────────
             ImGui.Spacing();
             ImGui.TextDisabled("PhysX-sourced overlay (live capsules)");
 
@@ -1010,14 +1010,14 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 ImGui.SetTooltip(
                     "Re-read every \"PlayerSuperior(Clone)\" capsule's live\n" +
                     "PhysX transform and re-draw it on top of the cached\n" +
-                    "wireframe. PhysX-direct player tracking â€” independent\n" +
+                    "wireframe. PhysX-direct player tracking — independent\n" +
                     $"of the IL2CPP player list. Refresh: {LivePhysxRefreshMs} ms.");
 
             ImGui.Checkbox("Bone capsules##live", ref _showLivePhysxBones);
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip(
                     "Same idea for \"Base Human*\" bone capsules (head, calves,\n" +
-                    "thighs, etc.) â€” gives you a per-player skeleton overlay\n" +
+                    "thighs, etc.) — gives you a per-player skeleton overlay\n" +
                     "purely from PhysX. ~16 bones per player; gets expensive\n" +
                     "fast if the lobby is full.");
 
@@ -1028,7 +1028,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 ImGui.SetTooltip(
                     "Draw a connected skeleton per active player using the\n" +
                     "managed-side bone positions read by the camera worker.\n" +
-                    "Independent of the PhysX bone path â€” works for every\n" +
+                    "Independent of the PhysX bone path — works for every\n" +
                     "player whose skeleton has resolved, even when PhysX bone\n" +
                     "capsules aren't in the scene. Green=local, red=enemy.");
             ImGui.Checkbox("Joint dots##il2cpp", ref _showSkeletonJoints);
@@ -1050,7 +1050,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             _livePhysxPlayerIndices.Clear();
             _livePhysxBoneIndices.Clear();
             _livePhysxPoses.Clear();
-            // New snapshot â‡’ ActorBase pointers are new â‡’ resolved offsets
+            // New snapshot ⇒ ActorBase pointers are new ⇒ resolved offsets
             // from the old snapshot are stale. Wipe and re-probe on next refresh.
             _livePhysxTransformOffsets.Clear();
             for (int i = 0; i < snap.Actors.Length; i++)
@@ -1070,7 +1070,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <see cref="_livePhysxPoses"/>. Rate-limited to
         /// <see cref="LivePhysxRefreshMs"/> so a high UI framerate doesn't
         /// turn into 60 Hz DMA traffic. Silently skips actors with invalid
-        /// pointers â€” happens during snapshot transitions / player
+        /// pointers — happens during snapshot transitions / player
         /// despawns / etc. Costs one scatter batch per refresh regardless
         /// of how many actors are tracked.
         /// </summary>
@@ -1191,9 +1191,9 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <summary>
         /// Renders a per-player skeleton from the managed-side
         /// <see cref="GameWorld.Player.Skeleton"/> data. Each active player
-        /// contributes up to 14 line segments (headâ†’neckâ†’torsoâ†’pelvis,
-        /// pelvisâ†’kneeâ†’foot Ã—2, collarâ†’elbowâ†’hand Ã—2) projected through
-        /// the same camera matrix as the wireframe pass. No DMA â€” reads only
+        /// contributes up to 14 line segments (head→neck→torso→pelvis,
+        /// pelvis→knee→foot ×2, collar→elbow→hand ×2) projected through
+        /// the same camera matrix as the wireframe pass. No DMA — reads only
         /// the already-populated bone arrays the camera worker filled.
         /// </summary>
         private static void DrawSkeletonOverlay(ImDrawListPtr dl,
@@ -1211,7 +1211,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 var skel = p.Skeleton;
                 if (skel is null) continue;
 
-                // Distance cull on the body anchor â€” if the whole player is
+                // Distance cull on the body anchor — if the whole player is
                 // out of range, skip the per-bone work. Falls back to feet
                 // position when no bone has resolved yet.
                 Vector3 anchorWorld = skel.GetBonePosition(eft_dma_radar.Silk.Tarkov.Unity.Bones.HumanSpine2)
@@ -1225,11 +1225,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         }
 
         /// <summary>
-        /// Renders one player's skeleton â€” projects every tracked bone, then
+        /// Renders one player's skeleton — projects every tracked bone, then
         /// emits the same 14-segment connectivity the
         /// <see cref="GameWorld.Player.Skeleton.UpdateScreenBuffer"/> 2D
         /// path uses. Bones that fail to project (behind camera / not yet
-        /// resolved) drop the entire segment they participate in â€” better
+        /// resolved) drop the entire segment they participate in — better
         /// than drawing degenerate lines to (0,0).
         /// </summary>
         private static void DrawPlayerSkeleton(ImDrawListPtr dl,
@@ -1238,7 +1238,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         {
             // Project every joint we care about. Returns null for any bone
             // that isn't resolved AND null for any bone that's behind the
-            // camera â€” both cases collapse to the same "skip" handling.
+            // camera — both cases collapse to the same "skip" handling.
             Vector2? P(eft_dma_radar.Silk.Tarkov.Unity.Bones b)
             {
                 var w = skel.GetBonePosition(b);
@@ -1271,7 +1271,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
             if (_showSkeletonBones)
             {
-                // Spine chain (head â†’ neck â†’ upper â†’ mid â†’ lower â†’ pelvis)
+                // Spine chain (head → neck → upper → mid → lower → pelvis)
                 S(head, neck); S(neck, upper); S(upper, mid); S(mid, lower); S(lower, pelvis);
                 // Arms
                 S(upper, lCollar); S(lCollar, lElbow); S(lElbow, lHand);
@@ -1293,7 +1293,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <summary>
         /// Render pass for the live PhysX overlay. Called after the regular
         /// geometry pass + blocker highlights so the live capsules always
-        /// end up on top. Reads the cached pose dict â€” empty until the next
+        /// end up on top. Reads the cached pose dict — empty until the next
         /// refresh tick fills it.
         /// </summary>
         private static void DrawLivePhysxOverlay(ImDrawListPtr dl, SceneSnapshot snap,
@@ -1311,7 +1311,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     if (!_livePhysxPoses.TryGetValue(idx, out var pose)) continue;
                     if (idx < 0 || idx >= snap.Actors.Length) continue;
                     var a = snap.Actors[idx];
-                    // Distance cull matches the geometry pass â€” keeps the
+                    // Distance cull matches the geometry pass — keeps the
                     // overlay's drawing budget honest at long render ranges.
                     if (Vector3.DistanceSquared(_camPos, pose.Position) > rangeSq) continue;
                     DrawCapsuleAt(dl, pose, a.PrimitiveSize.X, a.PrimitiveSize.Y,
@@ -1347,7 +1347,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             ImGui.Checkbox("Show live rays", ref _showLiveRays);
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip(
-                    "Draw eye â†’ player rays from the last visibility tick.\n" +
+                    "Draw eye → player rays from the last visibility tick.\n" +
                     "Green = visible, red = blocked.\n" +
                     "Requires VisibilityWorker to be running.");
         }
@@ -1477,11 +1477,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         private static long   _snapStatusMsgMs;
         private static bool   _snapStatusOk;
 
-        // â”€â”€ Camera / projection helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Camera / projection helpers ──────────────────────────────────────
 
         /// <summary>
         /// Spherical-to-cartesian: turn (yaw, pitch) into a unit forward vector.
-        /// Yaw 0 = +Z, yaw +Ï€/2 = +X (right-handed, +Y up).
+        /// Yaw 0 = +Z, yaw +π/2 = +X (right-handed, +Y up).
         /// </summary>
         private static Vector3 ComputeForward(float yaw, float pitch)
         {
@@ -1526,7 +1526,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         }
 
         /// <summary>
-        /// World-space point â†’ viewport pixel. Returns false (and an
+        /// World-space point → viewport pixel. Returns false (and an
         /// undefined <paramref name="screen"/>) when the point is behind the
         /// camera or otherwise outside the clip space.
         /// </summary>
@@ -1544,7 +1544,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return true;
         }
 
-        // â”€â”€ Filter helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Filter helpers ───────────────────────────────────────────────────
 
         private static bool PassesTypeFilter(PxGeometryType t) => t switch
         {
@@ -1554,7 +1554,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             PxGeometryType.ConvexMesh   => _showConvex,
             PxGeometryType.TriangleMesh => _showTriMesh,
             PxGeometryType.HeightField  => _showHeightField,
-            _                           => true,  // Plane / Invalid â€” always allow
+            _                           => true,  // Plane / Invalid — always allow
         };
 
         private static bool PassesNameFilter(string? name)
@@ -1570,7 +1570,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return (_layerDisplayFilter & shapeLayerMask) != 0;
         }
 
-        // â”€â”€ Vis-check overlay helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Vis-check overlay helpers ────────────────────────────────────────
 
         /// <summary>
         /// Reads <see cref="VisibilityWorker.LastPerPlayer"/> and collects the
@@ -1589,10 +1589,10 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return set;
         }
 
-        // â”€â”€ Color / draw helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Color / draw helpers ─────────────────────────────────────────────
 
         /// <summary>
-        /// Per-actor wireframe colour â€” driven by <see cref="_colorMode"/>
+        /// Per-actor wireframe colour — driven by <see cref="_colorMode"/>
         /// plus optional distance-based alpha fade.
         /// </summary>
         private static uint PickColor(CachedActor a, float distSq)
@@ -1626,7 +1626,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         /// <summary>
         /// Draws a single AABB as a 12-edge wireframe box. Each edge is
-        /// independently projected â€” if either endpoint projects behind the
+        /// independently projected — if either endpoint projects behind the
         /// camera, that edge is dropped.
         /// </summary>
         private static void DrawAabb(ImDrawListPtr dl, Vector3 min, Vector3 max,
@@ -1636,7 +1636,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         /// <summary>
         /// Same as <see cref="DrawAabb"/> but with a caller-controlled line
-        /// thickness â€” used for the hover-highlight and blocker-highlight passes.
+        /// thickness — used for the hover-highlight and blocker-highlight passes.
         /// </summary>
         private static void DrawAabbThick(ImDrawListPtr dl, Vector3 min, Vector3 max,
                                           Matrix4x4 viewProj, Vector2 vpOrigin, Vector2 vpSize,
@@ -1667,10 +1667,10 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ True-shape rendering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── True-shape rendering ─────────────────────────────────────────────
         //
         // Each branch reads the actor's WorldTransform (quaternion + position,
-        // already composed at cache build time as actorÃ—shape-local pose) plus
+        // already composed at cache build time as actor×shape-local pose) plus
         // the type-specific data: PrimitiveSize for sphere/capsule/box, an
         // index into the snapshot's mesh tables for trimesh/convex/heightfield.
         // AABB is the universal fallback when data is unavailable or per-shape
@@ -1726,7 +1726,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     }
                     break;
                 default:
-                    // Plane / Invalid â€” AABB is the only meaningful representation.
+                    // Plane / Invalid — AABB is the only meaningful representation.
                     DrawAabb(dl, a.WorldAabbMin, a.WorldAabbMax, viewProj, vpOrigin, vpSize, color);
                     break;
             }
@@ -1754,7 +1754,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// <c>PrimitiveSize.X</c> = radius, <c>PrimitiveSize.Y</c> = half-height
         /// (cylinder body extent, not including caps). Rendered as two endcap
         /// circles, four body lines along the cylinder, and two hemisphere
-        /// half-circle pairs at each end â€” fully oriented by the quaternion.
+        /// half-circle pairs at each end — fully oriented by the quaternion.
         /// </summary>
         private static void DrawCapsuleShape(ImDrawListPtr dl, CachedActor a,
             Matrix4x4 viewProj, Vector2 vpOrigin, Vector2 vpSize, uint color)
@@ -1784,7 +1784,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             DrawCircle(dl, endA, axisY, axisZ, r, viewProj, vpOrigin, vpSize, color, 18);
             DrawCircle(dl, endB, axisY, axisZ, r, viewProj, vpOrigin, vpSize, color, 18);
 
-            // Four longitudinal body lines (0Â°, 90Â°, 180Â°, 270Â° around the axis).
+            // Four longitudinal body lines (0°, 90°, 180°, 270° around the axis).
             for (int i = 0; i < 4; i++)
             {
                 float t   = i * (MathF.PI * 0.5f);
@@ -1840,7 +1840,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// them angularly around the plane normal, and draws the closed face
         /// polygon. We don't have explicit face-vertex indices in the cache
         /// (the raycaster only needs planes) so this re-derives connectivity
-        /// per face â€” fine for the modest vertex counts (â‰¤ 32) PhysX convex
+        /// per face — fine for the modest vertex counts (≤ 32) PhysX convex
         /// meshes carry.
         /// </summary>
         private static void DrawConvexMeshShape(ImDrawListPtr dl, CachedActor a,
@@ -1859,7 +1859,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
             var tr = a.WorldTransform;
 
-            // Small stack buffers â€” typical convex face has â‰¤ 8 vertices.
+            // Small stack buffers — typical convex face has ≤ 8 vertices.
             Span<int>   faceIdx = stackalloc int[32];
             Span<float> faceAng = stackalloc float[32];
 
@@ -1883,7 +1883,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 cen /= count;
 
                 // 2D basis inside the face plane: pick any axis not parallel
-                // to the normal, project to get u; v = n Ã— u for right-handed.
+                // to the normal, project to get u; v = n × u for right-handed.
                 Vector3 refAxis = MathF.Abs(n.X) < 0.9f ? Vector3.UnitX : Vector3.UnitY;
                 Vector3 u = Vector3.Normalize(Vector3.Cross(n, refAxis));
                 Vector3 v = Vector3.Cross(n, u);
@@ -1894,7 +1894,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     faceAng[k] = MathF.Atan2(Vector3.Dot(dir, v), Vector3.Dot(dir, u));
                 }
 
-                // Insertion sort by angle â€” count is â‰¤ 32 so anything fancier
+                // Insertion sort by angle — count is ≤ 32 so anything fancier
                 // is overkill.
                 for (int i = 1; i < count; i++)
                 {
@@ -1924,7 +1924,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         }
 
         /// <summary>
-        /// Triangle-mesh wireframe â€” every triangle's three edges drawn in
+        /// Triangle-mesh wireframe — every triangle's three edges drawn in
         /// world space. Edges are not de-duplicated (shared edges between
         /// adjacent triangles get drawn twice), which is acceptable inside
         /// the per-mesh triangle budget. Above the budget the dispatcher
@@ -1960,7 +1960,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         }
 
         /// <summary>
-        /// Height-field wireframe â€” samples the grid at <c>_hfStep</c> stride
+        /// Height-field wireframe — samples the grid at <c>_hfStep</c> stride
         /// and draws one polyline per row and one per column. World position
         /// of sample <c>(row, col)</c> is
         /// <c>(col*ColumnScale, sample*HeightScale, row*RowScale)</c> in
@@ -2014,9 +2014,9 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         }
 
         /// <summary>
-        /// Generic circle in 3D â€” emits a closed polyline whose points are
-        /// <c>center + (axisUÂ·cos(Î¸) + axisVÂ·sin(Î¸))Â·radius</c> for Î¸ stepping
-        /// around 2Ï€. <paramref name="axisU"/> and <paramref name="axisV"/>
+        /// Generic circle in 3D — emits a closed polyline whose points are
+        /// <c>center + (axisU·cos(θ) + axisV·sin(θ))·radius</c> for θ stepping
+        /// around 2π. <paramref name="axisU"/> and <paramref name="axisV"/>
         /// must be orthonormal and orthogonal to the circle's normal; passing
         /// world-axis unit vectors gives an axis-aligned circle.
         /// </summary>
@@ -2045,8 +2045,8 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         }
 
         /// <summary>
-        /// Half-circle from Î¸ = 0 to Î¸ = Ï€, parameterised as
-        /// <c>center + capAxisÂ·sin(Î¸)Â·radius + perpAxisÂ·cos(Î¸)Â·radius</c>.
+        /// Half-circle from θ = 0 to θ = π, parameterised as
+        /// <c>center + capAxis·sin(θ)·radius + perpAxis·cos(θ)·radius</c>.
         /// <paramref name="capAxis"/> points outward from the parent volume
         /// (e.g. the capsule end's outward direction), so the resulting arc
         /// curves away on the appropriate side.
@@ -2077,7 +2077,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// Draws a single player as a vertical column from feet up to
         /// <see cref="_playerMarkerHeight"/>, with a small dot at the head
         /// and optionally a name label above. Distance-cull-aware so it
-        /// honours the same Range slider as the geometry pass â€” otherwise
+        /// honours the same Range slider as the geometry pass — otherwise
         /// players 500 m away would still draw on top of everything.
         /// </summary>
         private static void DrawPlayerMarker(
@@ -2107,19 +2107,19 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             // Both endpoints behind the camera? Nothing usable to draw.
             if (!okFeet && !okHead) return;
 
-            // Vertical body line â€” only emitted when both ends project. A
+            // Vertical body line — only emitted when both ends project. A
             // single endpoint isn't enough for a meaningful line and would
             // smear off-screen as the camera turns.
             if (okFeet && okHead)
                 dl.AddLine(feetSc, headSc, color, 2.0f);
 
-            // Head dot â€” always drawn when the head projects, regardless of
+            // Head dot — always drawn when the head projects, regardless of
             // feet. Helps pick out players hidden behind the bottom edge of
             // a window or low cover.
             if (okHead)
                 dl.AddCircleFilled(headSc, 4f, color, 8);
 
-            // Feet ring â€” small ground anchor so the player sits visually on
+            // Feet ring — small ground anchor so the player sits visually on
             // the floor instead of floating mid-air at distance.
             if (okFeet)
                 dl.AddCircle(feetSc, 5f, color, 10, 1.5f);
@@ -2133,7 +2133,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ Small helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Small helpers ────────────────────────────────────────────────────
 
         private static string FormatSize(long bytes)
         {

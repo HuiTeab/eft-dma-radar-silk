@@ -10,7 +10,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// aligned for SIMD reads via <see cref="System.Numerics.Vector3"/> /
     /// <see cref="System.Numerics.Quaternion"/>.
     /// <para>
-    /// Immutable value type â€” all "modifications" return a fresh struct. The
+    /// Immutable value type — all "modifications" return a fresh struct. The
     /// raycaster builds local-space rays via <see cref="InverseTransformPoint"/>
     /// / <see cref="InverseTransformDirection"/> on the hot path; both are
     /// inlined and allocation-free.
@@ -32,7 +32,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         public static readonly PxTransform Identity = new(Vector3.Zero, Quaternion.Identity);
 
-        // â”€â”€ Validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Validation ───────────────────────────────────────────────────────
 
         /// <summary>
         /// True when every component is finite. We reject NaN/Inf at the cache
@@ -54,14 +54,14 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             {
                 float sq = Rotation.X * Rotation.X + Rotation.Y * Rotation.Y
                          + Rotation.Z * Rotation.Z + Rotation.W * Rotation.W;
-                return sq > 0.97f && sq < 1.03f; // Â±1.5 % tolerance
+                return sq > 0.97f && sq < 1.03f; // ±1.5 % tolerance
             }
         }
 
-        // â”€â”€ Single-point transforms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Single-point transforms ──────────────────────────────────────────
 
         /// <summary>
-        /// Local â†’ world. Rotates <paramref name="local"/> by <see cref="Rotation"/>
+        /// Local → world. Rotates <paramref name="local"/> by <see cref="Rotation"/>
         /// then translates by <see cref="Position"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -69,30 +69,30 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             => Vector3.Transform(local, Rotation) + Position;
 
         /// <summary>
-        /// World â†’ local. Inverse of <see cref="TransformPoint"/>.
+        /// World → local. Inverse of <see cref="TransformPoint"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Vector3 InverseTransformPoint(Vector3 world)
             => Vector3.Transform(world - Position, Conjugate(Rotation));
 
         /// <summary>
-        /// Local â†’ world direction (rotation only, no translation).
+        /// Local → world direction (rotation only, no translation).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Vector3 TransformDirection(Vector3 localDir)
             => Vector3.Transform(localDir, Rotation);
 
         /// <summary>
-        /// World â†’ local direction (inverse rotation only).
+        /// World → local direction (inverse rotation only).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Vector3 InverseTransformDirection(Vector3 worldDir)
             => Vector3.Transform(worldDir, Conjugate(Rotation));
 
-        // â”€â”€ Composition â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Composition ──────────────────────────────────────────────────────
 
         /// <summary>
-        /// Composes <c>a</c> then <c>b</c> â€” equivalent to
+        /// Composes <c>a</c> then <c>b</c> — equivalent to
         /// <c>worldPt = a.TransformPoint(b.TransformPoint(localPt))</c>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -106,7 +106,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         }
 
         /// <summary>
-        /// Returns the inverse transform â€” flipping it would undo a
+        /// Returns the inverse transform — flipping it would undo a
         /// <see cref="TransformPoint"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -117,10 +117,10 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return new PxTransform(inversePos, inverseRot);
         }
 
-        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Helpers ──────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Quaternion conjugate â€” equal to the inverse for unit quaternions.
+        /// Quaternion conjugate — equal to the inverse for unit quaternions.
         /// We assume unit quaternions on the hot path (see
         /// <see cref="IsRotationUnit"/>); callers validate at the cache boundary.
         /// </summary>

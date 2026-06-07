@@ -8,33 +8,33 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// Rolling-window aggregator of which actors blocked sightlines, fed by
     /// <see cref="VisibilityWorker"/> at the end of every tick. Exists so the
     /// debug UI can answer the one question that actually drives rule
-    /// engineering â€” "which actor is causing the most problems right now?" â€”
+    /// engineering — "which actor is causing the most problems right now?" —
     /// without re-aggregating from scratch every UI frame.
     /// <para>
     /// Why a rolling window vs. an all-time counter: vischeck quality is
     /// situational. A perma-counter gets dominated by whatever wall you
     /// stared at for the first 30 seconds of the match and stops surfacing
     /// new offenders. A 30 s window keeps the list responsive to whatever's
-    /// happening *now* â€” which is the moment the user reaches for the debug
+    /// happening *now* — which is the moment the user reaches for the debug
     /// overlay in the first place.
     /// </para>
     /// <para>
     /// Storage model: append-only ring of hits with timestamps. Pruning
     /// happens lazily on every record + on every read, so the buffer never
-    /// grows unbounded even if nothing's reading. 60 Hz Ã— 8 players Ã—
-    /// 30 s = 14 400 max entries â€” a few hundred KB of memory, trivial.
+    /// grows unbounded even if nothing's reading. 60 Hz × 8 players ×
+    /// 30 s = 14 400 max entries — a few hundred KB of memory, trivial.
     /// </para>
     /// </summary>
     internal static class BlockerHistory
     {
-        // â”€â”€ Configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Configuration ────────────────────────────────────────────────────
 
         /// <summary>How far back the rolling window reaches. 30 s = long
         /// enough that a transient blocker spike survives a few ticks of
         /// looking elsewhere, short enough to feel "live".</summary>
         public const int WindowMs = 30_000;
 
-        // â”€â”€ Internal state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Internal state ───────────────────────────────────────────────────
 
         private readonly struct Hit
         {
@@ -49,13 +49,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             public ulong PlayerBase { get; }
         }
 
-        // ReaderWriterLockSlim would be overkill â€” the UI reads ~60 Hz and
+        // ReaderWriterLockSlim would be overkill — the UI reads ~60 Hz and
         // the worker writes at the same rate; a plain Monitor lock keeps
-        // things simple and the critical sections are < 50 Âµs.
+        // things simple and the critical sections are < 50 µs.
         private static readonly Lock _lock = new();
         private static readonly List<Hit> _hits = new(2048);
 
-        // â”€â”€ Hot path: per-tick recording (called from VisibilityWorker) â”€â”€â”€â”€â”€â”€
+        // ── Hot path: per-tick recording (called from VisibilityWorker) ──────
 
         /// <summary>
         /// Records every blocker hit in <paramref name="results"/> against the
@@ -78,13 +78,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        /// <summary>Wipes the window â€” called on match end / scene swap.</summary>
+        /// <summary>Wipes the window — called on match end / scene swap.</summary>
         public static void Clear()
         {
             lock (_lock) _hits.Clear();
         }
 
-        // â”€â”€ Read path: aggregated view for the UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Read path: aggregated view for the UI ────────────────────────────
 
         /// <summary>
         /// Aggregated row for the Top Blockers table: actor identity + how
@@ -109,7 +109,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         /// <summary>
         /// Returns up to <paramref name="max"/> rows, sorted by hit count
-        /// descending. Pruned and re-aggregated each call (cheap â€” the
+        /// descending. Pruned and re-aggregated each call (cheap — the
         /// window holds at most a few thousand hits and the dictionary
         /// pass is O(N)).
         /// </summary>
@@ -143,17 +143,17 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 .ToList();
         }
 
-        /// <summary>Total hits currently in the window â€” for the panel header.</summary>
+        /// <summary>Total hits currently in the window — for the panel header.</summary>
         public static int TotalHits
         {
             get { lock (_lock) return _hits.Count; }
         }
 
-        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Helpers ──────────────────────────────────────────────────────────
 
         private static void PruneLocked(long cutoff)
         {
-            // Hits are appended in monotonic-time order â€” find the first kept
+            // Hits are appended in monotonic-time order — find the first kept
             // index and remove the prefix in one shot instead of N RemoveAll
             // calls. O(log N) binary search to find the boundary.
             int lo = 0, hi = _hits.Count;

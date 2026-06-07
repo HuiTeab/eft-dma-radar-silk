@@ -16,20 +16,20 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// </para>
     ///
     /// <para>
-    /// Designed for <b>validation-first</b> behavior â€” the sig pattern is
+    /// Designed for <b>validation-first</b> behavior — the sig pattern is
     /// intentionally broad (matches thousands of global loads). The structural
     /// walk is what decides which candidate is real. This makes the probe resilient
     /// to engine patches that move code around without changing struct layouts.
     /// </para>
     ///
     /// <para>
-    /// Triggered explicitly (F9). Never runs automatically. Pure read-only â€” cannot
+    /// Triggered explicitly (F9). Never runs automatically. Pure read-only — cannot
     /// disturb the radar or the game.
     /// </para>
     /// </summary>
     internal static class PhysXProbe
     {
-        // â”€â”€ Configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Configuration ────────────────────────────────────────────────────
 
         // Bounds on what "plausibly NpPhysics" looks like. These are loose enough
         // to accept anything we might see in Arena while still rejecting random
@@ -39,7 +39,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
         // Struct offsets we expect inside NpPhysics / NpScene under PhysX 4.1.
         // We READ these; wrong values just mean "this candidate fails validation"
-        // â€” never a crash. The probe is the safe place to learn whether these
+        // — never a crash. The probe is the safe place to learn whether these
         // hold on the live engine build.
         private const uint NpPhysics_SceneArrayData = 0x08;
         private const uint NpPhysics_SceneArraySize = 0x10;
@@ -54,7 +54,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         // Hard cap on scan matches so a worst-case probe finishes promptly.
         private const int MaxMatches = 65536;
 
-        // â”€â”€ Entry point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Entry point ──────────────────────────────────────────────────────
 
         /// <summary>
         /// Auto-discovery entry point used by SceneCache when the cached
@@ -142,13 +142,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
 
             if (sigAddrs.Length == 0)
             {
-                Log.WriteLine("[PhysXProbe] No ptr-load sites found â€” sig pattern may need adjustment.");
+                Log.WriteLine("[PhysXProbe] No ptr-load sites found — sig pattern may need adjustment.");
                 return;
             }
 
             Log.WriteLine($"[PhysXProbe] Found {sigAddrs.Length} ptr-load sites; decoding unique RVAs...");
 
-            // Dedupe by resolved RVA â€” many call sites can decode to the same global.
+            // Dedupe by resolved RVA — many call sites can decode to the same global.
             var seenRvas = new HashSet<ulong>(sigAddrs.Length);
             var uniqueRvas = new List<ulong>();
             foreach (var sigAddr in sigAddrs)
@@ -165,7 +165,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             // several globals reached from different code paths); the singleton with
             // the most agreeing RVAs is the strongest candidate. We also flag any
             // candidate whose "NpPhysics" pointer lands inside UnityPlayer.dll itself
-            // â€” those are coincidental hits walking through data-section bytes, not
+            // — those are coincidental hits walking through data-section bytes, not
             // a real heap-allocated PhysX singleton.
             var hits = new List<HitRecord>();
             ulong unityEnd = unityBase + GetUnityImageSize(unityBase);
@@ -190,9 +190,9 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             // Group by resolved NpPhysics pointer; sort groups so the strongest
             // candidate is reported last (i.e. ends the log with the answer).
             // Strength ordering:
-            //   â€¢ valid (non-in-module) groups before in-module groups
-            //   â€¢ more agreeing RVAs first
-            //   â€¢ larger actor count first (real scene beats empty subscene)
+            //   • valid (non-in-module) groups before in-module groups
+            //   • more agreeing RVAs first
+            //   • larger actor count first (real scene beats empty subscene)
             var groups = hits
                 .GroupBy(h => h.NpPhysics)
                 .Select(g => new
@@ -212,7 +212,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             {
                 string verdict;
                 if (g.InModule)
-                    verdict = "SUSPECT (pointer is inside UnityPlayer.dll â€” likely a false positive)";
+                    verdict = "SUSPECT (pointer is inside UnityPlayer.dll — likely a false positive)";
                 else if (g.Rvas.Length >= 2 && g.Actors > 0)
                     verdict = "LIKELY (multiple RVAs agree + non-empty scene)";
                 else if (g.Actors > 0)
@@ -237,13 +237,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (best is not null)
             {
                 Log.WriteLine(
-                    $"[PhysXProbe] DONE â€” use rva=0x{best.Rvas[0].Rva:X8} " +
+                    $"[PhysXProbe] DONE — use rva=0x{best.Rvas[0].Rva:X8} " +
                     $"(np_physics=0x{best.NpPhysics:X}, scenes={best.Scenes}, " +
                     $"scene0.actors={best.Actors}).");
             }
             else
             {
-                Log.WriteLine("[PhysXProbe] DONE â€” all candidates were SUSPECT or WEAK. " +
+                Log.WriteLine("[PhysXProbe] DONE — all candidates were SUSPECT or WEAK. " +
                               "Re-check struct offsets for Unity 6 before adopting any RVA.");
             }
         }
@@ -264,7 +264,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// can detect candidates whose "NpPhysics" pointer is actually inside the
         /// DLL itself (those are coincidental data-section hits, not real PhysX).
         /// Falls back to a generous 64 MB envelope if the live size isn't available
-        /// â€” never under-reports, so the in-module flag stays conservative.
+        /// — never under-reports, so the in-module flag stays conservative.
         /// </summary>
         private static ulong GetUnityImageSize(ulong unityBase)
         {
@@ -272,7 +272,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return size > 0 ? size : 0x4000000UL;
         }
 
-        // â”€â”€ Internals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Internals ────────────────────────────────────────────────────────
 
         /// <summary>
         /// Decodes a 7-byte <c>mov rax,[rip+rel32]</c> at <paramref name="sigAddr"/>

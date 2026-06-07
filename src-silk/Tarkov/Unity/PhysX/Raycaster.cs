@@ -13,30 +13,30 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
     /// <para>
     /// Phase 1 strategy: linear scan over actors, gated by a fast slab-test
     /// against each actor's pre-computed world AABB. Per-mesh and per-scene
-    /// BVHs are a Phase 2 optimization â€” added without changing this file's
+    /// BVHs are a Phase 2 optimization — added without changing this file's
     /// public API (the geometry functions just gain accelerated variants).
     /// </para>
     /// </summary>
     internal static class Raycaster
     {
-        // â”€â”€ See-through layer filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── See-through layer filter ─────────────────────────────────────────
 
         /// <summary>
-        /// Unity layers (one-hot) whose actors are treated as see-through â€”
+        /// Unity layers (one-hot) whose actors are treated as see-through —
         /// the raycaster skips them entirely. <see cref="CachedActor.ShapeLayerMask"/>
         /// is itself one-hot from <c>PxFilterData.word1</c>, so a per-actor
         /// AND against this mask answers "is this shape on a see-through
         /// layer?" in one instruction.
         /// <para>
         /// Default value: <c>1 &lt;&lt; 16</c>. Empirically validated on
-        /// Arena_Bay5 and Arena_Prison via the per-blocker DIAG line â€”
-        /// layer 16 shapes are all 0.5 Ã— 0.5 Ã— 0.5 capsules at moving
+        /// Arena_Bay5 and Arena_Prison via the per-blocker DIAG line —
+        /// layer 16 shapes are all 0.5 × 0.5 × 0.5 capsules at moving
         /// positions, i.e. player character colliders. Leaving them in the
         /// raycaster causes enemy A's collider to "block" the sightline to
         /// enemy B even when nothing else is between them.
         /// </para>
         /// <para>
-        /// Tunable at runtime â€” the value is read once per <see cref="AnyHit"/>
+        /// Tunable at runtime — the value is read once per <see cref="AnyHit"/>
         /// call. To add more see-through layers (e.g. foliage / glass / decals
         /// once we identify them by index from live DIAGs), OR additional bits
         /// into this property.
@@ -44,7 +44,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
         /// </summary>
         public static uint SeeThroughLayerMask { get; set; } = 1u << 16;
 
-        // â”€â”€ Public entry point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Public entry point ───────────────────────────────────────────────
 
         /// <summary>
         /// Returns true if the ray from <paramref name="origin"/> in direction
@@ -94,7 +94,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             {
                 var actor = actors[i];
 
-                // Gate 0: see-through classifier. A single pre-computed bool â€”
+                // Gate 0: see-through classifier. A single pre-computed bool —
                 // <see cref="VisibilityClassifier"/> combines the layer-mask
                 // rule (see <see cref="SeeThroughLayerMask"/>) with per-actor
                 // name patterns at build / load time. One bool read is the
@@ -103,7 +103,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                     continue;
 
                 // Gate 1: world AABB test. A tight AABB is the cheapest possible
-                // rejector â€” one fmadd per axis. Anything that fails this can't
+                // rejector — one fmadd per axis. Anything that fails this can't
                 // possibly hit the actor's geometry.
                 if (!RayAabb(origin, invDir, actor.WorldAabbMin, actor.WorldAabbMax, maxDistance))
                     continue;
@@ -119,7 +119,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return false;
         }
 
-        // â”€â”€ Per-actor dispatch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Per-actor dispatch ───────────────────────────────────────────────
 
         private static bool HitsActor(
             SceneSnapshot snapshot,
@@ -156,7 +156,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 case PxGeometryType.Box:
                     return HitsBox(actor, origin, direction, maxDistance);
 
-                // Plane / ConvexMesh / Invalid â€” Phase 1 doesn't ray-test these.
+                // Plane / ConvexMesh / Invalid — Phase 1 doesn't ray-test these.
                 // The world AABB gate already cleared them, so reporting no-hit
                 // is correct for Phase 1's "visible through this collider" check.
                 default:
@@ -164,7 +164,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             }
         }
 
-        // â”€â”€ AABB slab test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── AABB slab test ───────────────────────────────────────────────────
 
         /// <summary>
         /// Standard ray-AABB slab test. <paramref name="invDir"/> must be the
@@ -197,12 +197,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return tmax >= MathF.Max(tmin, 0f) && tmin <= maxT;
         }
 
-        // â”€â”€ Sphere â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Sphere ───────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Ray-sphere intersection â€” visibility semantics. Returns true if
+        /// Ray-sphere intersection — visibility semantics. Returns true if
         /// the ray ENTERS the sphere from outside within <c>[0, maxT]</c>.
-        /// If the ray ORIGIN is already inside the sphere, returns false â€”
+        /// If the ray ORIGIN is already inside the sphere, returns false —
         /// the sphere is then an enclosing volume, not a wall between us and
         /// anything outside it.
         /// </summary>
@@ -215,11 +215,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (radius <= 0f) return false;
             var oc = origin - center;
             float c = Vector3.Dot(oc, oc) - radius * radius;
-            // Origin inside the sphere â€” visibility passes through; the
+            // Origin inside the sphere — visibility passes through; the
             // sphere encloses us rather than blocking a line of sight.
             if (c <= 0f) return false;
             float b = Vector3.Dot(oc, direction);
-            // Ray pointing away from sphere â‡’ no hit.
+            // Ray pointing away from sphere ⇒ no hit.
             if (b > 0f) return false;
             float disc = b * b - c;
             if (disc < 0f) return false;
@@ -227,12 +227,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return t >= 0f && t <= maxT;
         }
 
-        // â”€â”€ Triangle (MÃ¶llerâ€“Trumbore) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Triangle (Möller–Trumbore) ───────────────────────────────────────
 
         /// <summary>
         /// Ray-triangle intersection. Returns true and writes the hit distance
         /// to <paramref name="t"/> when the ray crosses the triangle at
-        /// <c>t âˆˆ [0, maxT]</c>. Triangles are double-sided (no back-face culling)
+        /// <c>t ∈ [0, maxT]</c>. Triangles are double-sided (no back-face culling)
         /// because PhysX triangle meshes can be hit from either side depending
         /// on the surface they represent.
         /// </summary>
@@ -249,7 +249,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             var e2 = v2 - v0;
             var p  = Vector3.Cross(direction, e2);
             float det = Vector3.Dot(e1, p);
-            // Near-parallel ray â‡’ skip (we never hit the plane in any useful sense).
+            // Near-parallel ray ⇒ skip (we never hit the plane in any useful sense).
             if (det > -EPS && det < EPS) return false;
             float invDet = 1f / det;
 
@@ -268,7 +268,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return true;
         }
 
-        // â”€â”€ Triangle mesh â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Triangle mesh ────────────────────────────────────────────────────
 
         /// <summary>
         /// Triangle-mesh hit test. Transforms the ray to mesh-local space (single
@@ -283,7 +283,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             CachedTriMesh mesh, PxTransform worldXform,
             Vector3 origin, Vector3 direction, float maxT)
         {
-            // Bring the ray into the mesh's local frame. Rotation only â€” the
+            // Bring the ray into the mesh's local frame. Rotation only — the
             // worldXform.InverseTransformDirection skips translation as required.
             var localOrigin = worldXform.InverseTransformPoint(origin);
             var localDir    = worldXform.InverseTransformDirection(direction);
@@ -313,26 +313,26 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return false;
         }
 
-        // â”€â”€ Convex mesh (polytope slab method) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Convex mesh (polytope slab method) ───────────────────────────────
 
         /// <summary>
         /// Ray vs convex polyhedron. Transforms the ray into the mesh's local
-        /// frame once, then clips it against each polygon plane in turn â€”
+        /// frame once, then clips it against each polygon plane in turn —
         /// classic slab method generalised from AABB to arbitrary convex
         /// polytopes.
         /// </summary>
         /// <remarks>
         /// <para>
         /// Each plane is stored as a <see cref="Vector4"/> packed as
-        /// <c>(n.x, n.y, n.z, d)</c> with the plane equation <c>nÂ·p + d = 0</c>
+        /// <c>(n.x, n.y, n.z, d)</c> with the plane equation <c>n·p + d = 0</c>
         /// (PhysX <c>PxPlane</c> convention; outward-facing normal, polyhedron
-        /// interior is <c>nÂ·p + d &lt; 0</c>). The ingest path validates
-        /// that <c>|n| â‰ˆ 1</c> for every polygon before we get here.
+        /// interior is <c>n·p + d &lt; 0</c>). The ingest path validates
+        /// that <c>|n| ≈ 1</c> for every polygon before we get here.
         /// </para>
         /// <para>
-        /// Origin-inside-polyhedron is treated as "no block" â€” same visibility
+        /// Origin-inside-polyhedron is treated as "no block" — same visibility
         /// semantics as the other geometry tests. We detect it by tEnter
-        /// staying â‰¤ 0 after all planes have been processed: the ray was
+        /// staying ≤ 0 after all planes have been processed: the ray was
         /// already inside every half-space at t=0, so it never entered from
         /// outside.
         /// </para>
@@ -344,7 +344,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             var lo = worldXform.InverseTransformPoint(origin);
             var ld = worldXform.InverseTransformDirection(direction);
 
-            // Local AABB pre-test â€” same cost-saving as the TriMesh path.
+            // Local AABB pre-test — same cost-saving as the TriMesh path.
             var localInvDir = new Vector3(
                 ld.X != 0f ? 1f / ld.X : float.PositiveInfinity,
                 ld.Y != 0f ? 1f / ld.Y : float.PositiveInfinity,
@@ -364,8 +364,8 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 var nrm = new Vector3(pl.X, pl.Y, pl.Z);
                 float dPlane = pl.W;
                 float denom = Vector3.Dot(nrm, ld);
-                // num is rearranged from "nÂ·(o + tÂ·d) + dPlane = 0":
-                //   tÂ·(nÂ·d) = -(dPlane + nÂ·o)
+                // num is rearranged from "n·(o + t·d) + dPlane = 0":
+                //   t·(n·d) = -(dPlane + n·o)
                 float num = -(dPlane + Vector3.Dot(nrm, lo));
 
                 if (MathF.Abs(denom) < EPS)
@@ -380,24 +380,24 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 float t = num / denom;
                 if (denom < 0f)
                 {
-                    // Entry plane (ray moving into the half-space) â€” raises tEnter.
+                    // Entry plane (ray moving into the half-space) — raises tEnter.
                     if (t > tEnter) tEnter = t;
                 }
                 else
                 {
-                    // Exit plane (ray moving out of the half-space) â€” lowers tExit.
+                    // Exit plane (ray moving out of the half-space) — lowers tExit.
                     if (t < tExit) tExit = t;
                 }
                 if (tEnter > tExit) return false;
             }
 
-            // Origin inside the polyhedron â€” visibility passes through.
+            // Origin inside the polyhedron — visibility passes through.
             if (tEnter <= 0f) return false;
             // Ray enters polyhedron within the segment of interest.
             return tEnter <= maxT && tEnter <= tExit;
         }
 
-        // â”€â”€ Height field â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Height field ─────────────────────────────────────────────────────
 
         /// <summary>
         /// Height-field hit test. Phase 1: a simple bounded walk over the row
@@ -448,10 +448,10 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 for (int c = cMin; c < cMax; c++)
                 {
                     // Quad corners in local space, two triangles per cell:
-                    //   v00 â”€â”€â”€ v01
-                    //    â”‚ \  T1â”‚
-                    //    â”‚T0 \  â”‚
-                    //   v10 â”€â”€â”€ v11
+                    //   v00 ─── v01
+                    //    │ \  T1│
+                    //    │T0 \  │
+                    //   v10 ─── v11
                     float x0 = c * colScale, x1 = (c + 1) * colScale;
                     float z0 = r * rowScale, z1 = (r + 1) * rowScale;
                     float y00 = hf.Sample(r,     c    ) * hScale;
@@ -472,7 +472,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return false;
         }
 
-        // â”€â”€ Capsule â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Capsule ──────────────────────────────────────────────────────────
 
         /// <summary>
         /// Capsule hit test. PhysX capsules are stored as a half-height along
@@ -489,7 +489,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             var lo = actor.WorldTransform.InverseTransformPoint(origin);
             var ld = actor.WorldTransform.InverseTransformDirection(direction);
 
-            // Endcap spheres at (Â±halfHeight, 0, 0) â€” share the same radius.
+            // Endcap spheres at (±halfHeight, 0, 0) — share the same radius.
             if (RaySphere(lo, ld, new Vector3( halfHeight, 0f, 0f), radius, maxT)) return true;
             if (RaySphere(lo, ld, new Vector3(-halfHeight, 0f, 0f), radius, maxT)) return true;
 
@@ -499,11 +499,11 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             float dy = ld.Y, dz = ld.Z;
             float oy = lo.Y, oz = lo.Z;
             float a = dy * dy + dz * dz;
-            if (a < 1e-8f) return false; // ray parallel to cylinder axis â€” endcaps handled this
+            if (a < 1e-8f) return false; // ray parallel to cylinder axis — endcaps handled this
             float b = oy * dy + oz * dz;
             float c = oy * oy + oz * oz - radius * radius;
             // Origin inside the cylinder body (within radius on YZ plane)
-            // AND between the body's X-span. Capsule encloses the eye â€”
+            // AND between the body's X-span. Capsule encloses the eye —
             // doesn't block. The endcap-inside case is handled by the
             // RaySphere short-circuit above.
             if (c <= 0f && lo.X >= -halfHeight && lo.X <= halfHeight)
@@ -525,13 +525,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             return false;
         }
 
-        // â”€â”€ Box (OBB) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Box (OBB) ────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Oriented-box hit test â€” visibility semantics. Transforms the ray
+        /// Oriented-box hit test — visibility semantics. Transforms the ray
         /// to box-local space, then reuses the slab test against the
         /// symmetric local AABB. If the origin is already inside the box,
-        /// returns false â€” the box is enclosing the eye, not blocking the
+        /// returns false — the box is enclosing the eye, not blocking the
         /// line of sight to anything outside it. This fix matters whenever
         /// the local player stands inside a debug / spawn-protection /
         /// detection volume the game models as a Box collider.
@@ -543,7 +543,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
             if (he.X <= 0f || he.Y <= 0f || he.Z <= 0f) return false;
 
             var lo = actor.WorldTransform.InverseTransformPoint(origin);
-            // Origin inside the OBB â‡’ box encloses the eye, doesn't block.
+            // Origin inside the OBB ⇒ box encloses the eye, doesn't block.
             if (MathF.Abs(lo.X) < he.X
                 && MathF.Abs(lo.Y) < he.Y
                 && MathF.Abs(lo.Z) < he.Z)
