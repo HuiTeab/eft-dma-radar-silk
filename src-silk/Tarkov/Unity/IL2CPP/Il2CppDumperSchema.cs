@@ -599,21 +599,6 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
             // ItemTemplate
             C("ItemTemplate", [F("Name"), F("ShortName"), F("<_id>k__BackingField", "_id"), F("Weight"), F("QuestItem")]),
 
-            // ModTemplate
-            C("ModTemplate", [F("Velocity")]),
-
-            // AmmoTemplate
-            C("AmmoTemplate", [
-                F("InitialSpeed"), F("BallisticCoeficient"), F("BulletMassGram"), F("BulletDiameterMilimeters"),
-                F("Damage"), F("PenetrationPower"),
-            ]),
-
-            // WeaponTemplate
-            C("WeaponTemplate", [
-                F("Velocity"), F("AllowJam"), F("AllowFeed"), F("AllowMisfire"), F("AllowSlide"),
-                F("RecoilForceBack"), F("RecoilForceUp"), F("RecoilCamera"),
-            ]),
-
             // PlayerBody
             C("PlayerBody", [
                 F("SkeletonRootJoint"), F("BodySkins"), F("_bodyRenderers"), F("SlotViews"), F("PointOfView"),

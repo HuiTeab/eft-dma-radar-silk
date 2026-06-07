@@ -124,6 +124,12 @@ namespace eft_dma_radar.Silk.Tarkov.Features
                     }
                 }
 
+                // Nothing queued this tick (features are edge-triggered / throttled) — skip the
+                // IsSafeToWriteMem gate and Execute entirely. With ballistics gone this is the
+                // common case, so it avoids ~100Hz of pointless DMA reads when no write is due.
+                if (hScatter.IsEmpty)
+                    return;
+
                 if (!SilkProgram.Config.MemWritesEnabled)
                     return;
 

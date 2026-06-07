@@ -21,6 +21,9 @@ namespace eft_dma_radar.Silk.DMA.ScatterAPI
         /// <summary>Callbacks executed after a successful <see cref="Execute"/> call. Must not throw.</summary>
         public Action? Callbacks { get; set; }
 
+        /// <summary>True when no write entries have been queued (lets callers skip the write path entirely).</summary>
+        public bool IsEmpty => _count == 0;
+
         public ScatterWriteHandle()
         {
             _handle = Memory.GetScatter(VmmFlags.NOCACHE);
