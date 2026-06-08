@@ -85,6 +85,11 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
     {
         private const int MaxConsecutiveFailures = 10;
 
+        /// <summary>Speed (m/s) below which, when near a stop, the BTR counts as parked there (route learning).</summary>
+        private const float StopDetectSpeed = 0.6f;
+        /// <summary>Distance (m) within which the BTR counts as "at" a stop (route learning).</summary>
+        private const float StopDetectRadius = 18f;
+
         /// <summary>Horizontal radius (meters) within which a player is considered to be on the BTR.</summary>
         private const float PassengerXZRadius = 3.0f;
         private const float PassengerXZRadiusSq = PassengerXZRadius * PassengerXZRadius;
@@ -98,6 +103,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
         private ulong _btrController;
         private ulong _btrView;
         private ulong _btrTurretView;
+        private ulong _btrTransformInternal;
         private Vector3 _position;
         private Vector3 _depotPosition;
         private float _currentSpeed;
@@ -111,6 +117,17 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
         private bool _hasValidPosition;
         private int _failureCount;
         private IReadOnlyList<BtrRouteStop> _routeStops = [];
+        private float _headingX;
+        private float _headingZ;
+        private BtrRouteStop? _nextStop;
+        /// <summary>BTR road graph: spline edges as (from,to) index pairs into <see cref="_routeStops"/>.</summary>
+        private IReadOnlyList<(int A, int B)> _edges = [];
+        // Learned route: which stop the BTR actually drives to after each stop, observed by
+        // watching where it pauses. Exact once warmed up (~1 loop), regardless of road curvature
+        // or how densely the stops interconnect. Falls back to the graph heuristic until then.
+        private int _lastVisitedStop = -1;
+        private int _atStop = -1;
+        private readonly Dictionary<int, int> _routeSuccessor = new();
 
         /// <summary>BTR world position (last known valid value).</summary>
         public Vector3 Position => _position;
@@ -120,6 +137,13 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
 
         /// <summary>Ordered list of BTR route stops resolved from <c>MapPathConfig.PathDestinations</c>.</summary>
         public IReadOnlyList<BtrRouteStop> RouteStops => _routeStops;
+
+        /// <summary>
+        /// Best-guess next route stop the BTR is driving toward, or <c>null</c> while parked or
+        /// indeterminate. The game exposes no readable "current destination index", so this is
+        /// inferred from the BTR's smoothed heading (see <see cref="UpdateNextStop"/>).
+        /// </summary>
+        public BtrRouteStop? NextStop => _nextStop;
 
         /// <summary>Current BTR speed in m/s (from <c>BTRView.CurrentSpeed</c>).</summary>
         public float CurrentSpeed => _currentSpeed;
@@ -181,9 +205,16 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
                 if (Memory.TryReadPtr(_btrView + Offsets.BTRView.turret, out var turret, false) && turret != 0)
                     _btrTurretView = turret;
 
+                // Cache the BTRView's native transform so live position can be read from the
+                // Unity transform hierarchy. BTRView._previousPosition has been observed at
+                // (0,0,0) while the BTR drives, so the transform is the reliable source.
+                if (Memory.TryReadPtrChain(_btrView, UnityOffsets.TransformChain, out var ti, false) && ti.IsValidVirtualAddress())
+                    _btrTransformInternal = ti;
+
                 // Resolve route stop positions from MapPathConfig.PathDestinations.
                 // Each entry is a MonoBehaviour — position is read via the standard TransformChain.
                 _routeStops = TryReadRouteStops();
+                _edges = TryReadSplineEdges();
 
                 _initialized = true;
                 _failureCount = 0;
@@ -204,21 +235,25 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
             if (!_initialized)
                 return;
 
-            if (!Memory.TryReadValue<Vector3>(_btrView + Offsets.BTRView._previousPosition, out var pos, false))
+            // Live position. Prefer the Unity transform (authoritative world pose):
+            // BTRView._previousPosition has been observed stuck at (0,0,0) while the BTR
+            // drives, so it is not a reliable live source. See TryReadBtrPosition.
+            if (!TryReadBtrPosition(out var pos))
             {
                 OnReadFailure();
                 return;
             }
 
-            if (!float.IsFinite(pos.X) || !float.IsFinite(pos.Y) || !float.IsFinite(pos.Z))
-            {
-                OnReadFailure();
-                return;
-            }
+            // Movement since the last good sample — drives the next-stop heading below.
+            var prevPos = _position;
+            bool hadPrev = _hasValidPosition;
 
             _position = pos;
             _hasValidPosition = true;
             _failureCount = 0;
+
+            if (hadPrev)
+                UpdateNextStop(pos - prevPos);
 
             // Cheap auxiliary reads — failures are non-fatal.
             if (Memory.TryReadValue<float>(_btrView + Offsets.BTRView.CurrentSpeed, out var spd, false)
@@ -288,6 +323,159 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
             return true;
         }
 
+        /// <summary>
+        /// Reads the BTR's live world position, preferring the Unity transform hierarchy
+        /// (cached <see cref="_btrTransformInternal"/>) over <c>BTRView._previousPosition</c>,
+        /// which has been observed stuck at (0,0,0) while the BTR is moving. Returns false
+        /// only if neither source yields a finite, non-zero position.
+        /// </summary>
+        private bool TryReadBtrPosition(out Vector3 pos)
+        {
+            // 1) Unity transform — the authoritative world pose used by every other object.
+            if (_btrTransformInternal != 0)
+            {
+                var tp = UnityOffsets.ReadWorldPosition(_btrTransformInternal);
+                if (tp != Vector3.Zero && float.IsFinite(tp.X) && float.IsFinite(tp.Y) && float.IsFinite(tp.Z))
+                {
+                    pos = tp;
+                    return true;
+                }
+            }
+
+            // 2) Fallback: BTRView._previousPosition (a server-sync field; may read zero).
+            if (Memory.TryReadValue<Vector3>(_btrView + Offsets.BTRView._previousPosition, out pos, false)
+                && float.IsFinite(pos.X) && float.IsFinite(pos.Y) && float.IsFinite(pos.Z))
+                return true;
+
+            pos = Vector3.Zero;
+            return false;
+        }
+
+        /// <summary>
+        /// Updates <see cref="NextStop"/>. Primary signal is the <b>learned route</b>: by watching
+        /// where the BTR actually pauses we record <c>successor[from] = to</c>, which is exact and
+        /// immune to road curvature and dense stop interconnection. Until a leg has been observed
+        /// (cold start, ~1 loop) it falls back to a <b>graph heuristic</b>: anchor on the nearest
+        /// stop, and pick either that stop (if heading toward it) or its nearest graph neighbor
+        /// ahead of the heading (if leaving it).
+        /// </summary>
+        private void UpdateNextStop(Vector3 delta)
+        {
+            var stops = _routeStops;
+            if (stops.Count == 0)
+            {
+                _nextStop = null;
+                return;
+            }
+
+            // Smooth heading on the XZ plane (kept fresh each tick; used by the fallback heuristic).
+            float dlen = MathF.Sqrt(delta.X * delta.X + delta.Z * delta.Z);
+            if (dlen > 0.02f)
+            {
+                _headingX = _headingX * 0.7f + (delta.X / dlen) * 0.3f;
+                _headingZ = _headingZ * 0.7f + (delta.Z / dlen) * 0.3f;
+            }
+
+            // Anchor: the nearest stop — the node the BTR is at or driving between.
+            int nearest = -1;
+            float nearestSq = float.MaxValue;
+            for (int i = 0; i < stops.Count; i++)
+            {
+                float vx = stops[i].Position.X - _position.X;
+                float vz = stops[i].Position.Z - _position.Z;
+                float d = vx * vx + vz * vz;
+                if (d < nearestSq) { nearestSq = d; nearest = i; }
+            }
+
+            // ── Route learning ───────────────────────────────────────────────────────
+            // While stopped beside a stop, record it. The transition between two consecutive
+            // parked stops teaches the real route: successor[previous] = current.
+            if (nearest >= 0 && nearestSq <= StopDetectRadius * StopDetectRadius && _currentSpeed < StopDetectSpeed)
+            {
+                if (_atStop != nearest)
+                {
+                    if (_lastVisitedStop >= 0 && _lastVisitedStop != nearest)
+                        _routeSuccessor[_lastVisitedStop] = nearest;
+                    _lastVisitedStop = nearest;
+                    _atStop = nearest;
+                }
+            }
+            else
+            {
+                _atStop = -1;
+            }
+
+            // ── Learned-route pick (wins once this leg has been observed) ─────────────
+            int routeAnchor = _atStop >= 0 ? _atStop : _lastVisitedStop;
+            if (routeAnchor >= 0 && _routeSuccessor.TryGetValue(routeAnchor, out var succ)
+                && succ >= 0 && succ < stops.Count)
+            {
+                _nextStop = stops[succ];
+                return;
+            }
+
+            // ── Fallback graph heuristic (cold start / unobserved leg) ────────────────
+            float hlen = MathF.Sqrt(_headingX * _headingX + _headingZ * _headingZ);
+            if (hlen < 0.1f)
+                return; // no heading and no learned route — keep last guess
+            float hx = _headingX / hlen, hz = _headingZ / hlen;
+
+            int picked = -1;
+            if (_edges.Count > 0 && nearest >= 0)
+            {
+                float nx = stops[nearest].Position.X - _position.X;
+                float nz = stops[nearest].Position.Z - _position.Z;
+                float ndist = MathF.Sqrt(nx * nx + nz * nz);
+                float toward = ndist > 0.001f ? (nx * hx + nz * hz) / ndist : 1f;
+
+                if (toward >= 0.3f)
+                {
+                    picked = nearest; // still approaching the anchor → it's the next stop
+                }
+                else
+                {
+                    // Left the anchor → next = its NEAREST graph neighbor that's ahead of us.
+                    float bestDist = float.MaxValue;
+                    foreach (var (a, b) in _edges)
+                    {
+                        int nb = a == nearest ? b : (b == nearest ? a : -1);
+                        if (nb < 0 || nb >= stops.Count)
+                            continue;
+                        float vx = stops[nb].Position.X - _position.X;
+                        float vz = stops[nb].Position.Z - _position.Z;
+                        float vlen = MathF.Sqrt(vx * vx + vz * vz);
+                        if (vlen < 1f)
+                            continue;
+                        float align = (vx * hx + vz * hz) / vlen;
+                        if (align < 0.5f)
+                            continue; // neighbor must be ahead
+                        if (vlen < bestDist) { bestDist = vlen; picked = nb; }
+                    }
+                }
+            }
+
+            // Last resort (no graph, or no neighbor ahead): nearest stop ahead of the heading.
+            if (picked < 0)
+            {
+                float bestDist = float.MaxValue;
+                for (int i = 0; i < stops.Count; i++)
+                {
+                    float vx = stops[i].Position.X - _position.X;
+                    float vz = stops[i].Position.Z - _position.Z;
+                    float vlen = MathF.Sqrt(vx * vx + vz * vz);
+                    if (vlen < 12f)
+                        continue;
+                    float align = (vx * hx + vz * hz) / vlen;
+                    if (align < 0.35f)
+                        continue;
+                    if (vlen < bestDist) { bestDist = vlen; picked = i; }
+                }
+            }
+
+            if (picked >= 0)
+                _nextStop = stops[picked];
+        }
+
         private void OnReadFailure()
         {
             if (++_failureCount < MaxConsecutiveFailures)
@@ -298,6 +486,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
             _hasValidPosition = false;
             _btrController = 0;
             _btrView = 0;
+            _btrTransformInternal = 0;
             _btrTurretView = 0;
             _gunnerPtr = 0;
             _currentSpeed = 0f;
@@ -306,6 +495,10 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
             _timeToEndPauseMs = 0;
             _isPaid = false;
             _turretYawDeg = 0f;
+            _headingX = 0f;
+            _headingZ = 0f;
+            _nextStop = null;
+            _atStop = -1; // keep _lastVisitedStop + _routeSuccessor — learned route is still valid
             _failureCount = 0;
             _position = Vector3.Zero;
             Unity.IL2CPP.BtrControllerResolver.InvalidateCache();
@@ -347,7 +540,34 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
             }
 
             if (_btrView.IsValidVirtualAddress())
+            {
                 Il2CppDumper.DumpClassFieldsToWriter(_btrView, sw, $"BTRView @ 0x{_btrView:X}");
+
+                // Position source check: _previousPosition has been seen as (0,0,0) while the
+                // BTR is moving. Log the Unity-transform world position beside it so the
+                // correct live-position source is obvious in the dump.
+                try
+                {
+                    Memory.TryReadValue<Vector3>(_btrView + Offsets.BTRView._previousPosition, out var prevPos, false);
+                    Vector3 xfPos = Vector3.Zero;
+                    ulong ti = 0;
+                    if (Memory.TryReadPtrChain(_btrView, UnityOffsets.TransformChain, out ti, false) && ti.IsValidVirtualAddress())
+                        xfPos = UnityOffsets.ReadWorldPosition(ti);
+                    sw.WriteLine($"  position: _previousPosition=({prevPos.X:F1},{prevPos.Y:F1},{prevPos.Z:F1})  " +
+                        $"transform=({xfPos.X:F1},{xfPos.Y:F1},{xfPos.Z:F1})  transformInternal=0x{ti:X}");
+                }
+                catch (Exception ex) { sw.WriteLine($"  position check failed: {ex.Message}"); }
+
+                // Next-destination hunt: the movement interpolator likely holds the current
+                // from/target waypoint the BTR is driving toward.
+                try
+                {
+                    const uint BTRView_interpolator = 0x78; // BTRView._interpolator (from dump)
+                    if (Memory.TryReadPtr(_btrView + BTRView_interpolator, out var interp, false) && interp.IsValidVirtualAddress())
+                        Il2CppDumper.DumpClassFieldsToWriter(interp, sw, $"  BTRView._interpolator @ 0x{interp:X}");
+                }
+                catch (Exception ex) { sw.WriteLine($"  _interpolator dump failed: {ex.Message}"); }
+            }
 
             if (_btrTurretView.IsValidVirtualAddress())
                 Il2CppDumper.DumpClassFieldsToWriter(_btrTurretView, sw, $"BTRTurretView @ 0x{_btrTurretView:X}");
@@ -358,6 +578,29 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
                 && mapPathCfg.IsValidVirtualAddress())
             {
                 Il2CppDumper.DumpClassFieldsToWriter(mapPathCfg, sw, $"MapPathConfig @ 0x{mapPathCfg:X}");
+
+                // BTR road graph: each PathSpline is an edge "s_<from>_<to>" between two stops.
+                // List every edge id so the full connectivity is visible.
+                try
+                {
+                    if (Memory.TryReadPtr(mapPathCfg + Offsets.MapPathConfig.PathSplines, out var splines, false)
+                        && splines.IsValidVirtualAddress())
+                    {
+                        using var splineList = MemList<ulong>.Get(splines, false);
+                        sw.WriteLine($"  PathSplines / road edges ({splineList.Count}):");
+                        for (int i = 0; i < splineList.Count; i++)
+                        {
+                            var el = splineList[i];
+                            string sid = "<unreadable>";
+                            if (el.IsValidVirtualAddress()
+                                && Memory.TryReadPtr(el + 0x20, out var idp, false)
+                                && Memory.TryReadUnityString(idp, out var s) && !string.IsNullOrEmpty(s))
+                                sid = s;
+                            sw.WriteLine($"    [{i}] {sid}");
+                        }
+                    }
+                }
+                catch (Exception ex) { sw.WriteLine($"  PathSplines walk failed: {ex.Message}"); }
             }
 
             // Dump BTRGlobalSettings and its LocationsWithBTR string array.
@@ -455,6 +698,25 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
             {
                 sw.WriteLine("  Route stops: none resolved yet.");
             }
+
+            // Parsed road graph (PathSpline edges) used for next-stop inference.
+            var edges = _edges;
+            if (edges.Count > 0)
+            {
+                var pairs = edges.Where(e => e.A < stops.Count && e.B < stops.Count)
+                                 .Select(e => $"{stops[e.A].Id}->{stops[e.B].Id}");
+                sw.WriteLine($"  Road graph ({edges.Count} edges): {string.Join(" ", pairs)}");
+            }
+
+            // Learned route (observed stop→stop successions) — the primary next-stop signal.
+            if (_routeSuccessor.Count > 0)
+            {
+                var succ = _routeSuccessor.Where(kv => kv.Key < stops.Count && kv.Value < stops.Count)
+                                          .Select(kv => $"{stops[kv.Key].Id}->{stops[kv.Value].Id}");
+                sw.WriteLine($"  Learned route ({_routeSuccessor.Count}): {string.Join(" ", succ)}");
+            }
+            sw.WriteLine($"  Route state: atStop={(_atStop >= 0 && _atStop < stops.Count ? stops[_atStop].Id : "-")}" +
+                         $"  lastVisited={(_lastVisitedStop >= 0 && _lastVisitedStop < stops.Count ? stops[_lastVisitedStop].Id : "-")}");
         }
 
         /// <summary>
@@ -540,6 +802,9 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
             }
             if (_isPaid)
                 label += " $";
+            // Show the inferred next stop while driving (named passenger stops only).
+            if (IsMoving && _nextStop?.Name is { } nextStopName)
+                label += $" → {nextStopName}";
             var labelWidth = SKPaints.FontRegular11.MeasureText(label, SKPaints.TextBtr);
             var labelPt = new SKPoint(point.X - labelWidth / 2f, point.Y - 12f);
             canvas.DrawText(label, labelPt, SKTextAlign.Left, SKPaints.FontRegular11, SKPaints.TextShadow);
@@ -619,6 +884,66 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Btr
             catch (Exception ex)
             {
                 Log.Write(AppLogLevel.Info, $"[BTR] TryReadRouteStops failed: {ex.Message}");
+                return [];
+            }
+        }
+
+        /// <summary>
+        /// Reads the BTR road graph from <c>MapPathConfig.PathSplines</c>. Each spline's id is
+        /// <c>"s_&lt;from&gt;_&lt;to&gt;"</c> naming the two route stops it connects; those are resolved
+        /// to indices into <see cref="_routeStops"/>. Consumed by <see cref="UpdateNextStop"/> to
+        /// pick the next stop along the actual road rather than by straight-line direction.
+        /// </summary>
+        private IReadOnlyList<(int A, int B)> TryReadSplineEdges()
+        {
+            try
+            {
+                if (_routeStops.Count == 0)
+                    return [];
+                if (!Memory.TryReadPtr(_btrController + Offsets.BtrController.MapPathsConfiguration, out var mapPathCfg, false)
+                    || !mapPathCfg.IsValidVirtualAddress())
+                    return [];
+                if (!Memory.TryReadPtr(mapPathCfg + Offsets.MapPathConfig.PathSplines, out var splinesObj, false)
+                    || !splinesObj.IsValidVirtualAddress())
+                    return [];
+
+                var idToIndex = new Dictionary<string, int>(_routeStops.Count, StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < _routeStops.Count; i++)
+                    idToIndex[_routeStops[i].Id] = i;
+
+                using var list = MemList<ulong>.Get(splinesObj, useCache: false);
+                if (list.Count <= 0 || list.Count > 512)
+                    return [];
+
+                var edges = new List<(int, int)>(list.Count);
+                for (int i = 0; i < list.Count; i++)
+                {
+                    var sp = list[i];
+                    if (!sp.IsValidVirtualAddress())
+                        continue;
+
+                    // PathSpline.id is PathPartBase.id at +0x20 (same slot as PathDestination.id).
+                    if (!Memory.TryReadPtr(sp + 0x20, out var idPtr, false)
+                        || !Memory.TryReadUnityString(idPtr, out var id)
+                        || string.IsNullOrEmpty(id))
+                        continue;
+
+                    // Format: "s_<from>_<to>", e.g. "s_p1_p7".
+                    var parts = id.Split('_');
+                    if (parts.Length < 3 || !parts[0].Equals("s", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    if (idToIndex.TryGetValue(parts[1], out var a)
+                        && idToIndex.TryGetValue(parts[2], out var b)
+                        && a != b)
+                        edges.Add((a, b));
+                }
+
+                Log.WriteLine($"[BTR] Resolved {edges.Count} road edge(s) from {list.Count} PathSpline(s).");
+                return edges;
+            }
+            catch (Exception ex)
+            {
+                Log.Write(AppLogLevel.Info, $"[BTR] TryReadSplineEdges failed: {ex.Message}");
                 return [];
             }
         }

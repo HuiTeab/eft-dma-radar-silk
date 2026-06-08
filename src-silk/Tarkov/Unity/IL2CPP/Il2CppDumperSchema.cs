@@ -675,9 +675,21 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
             // GamePlayerOwner (resolved via TypeIndex — singleton statics)
             C("GamePlayerOwner", [F("_myPlayer")], s: true, ti: Offsets.Special.GamePlayerOwner_TypeIndex),
 
-            // BTRGlobalSettings (BTR map list + per-map config dictionary)
+            // BTRGlobalSettings (BTR map list + taxi pricing + per-map config dictionary)
             C("BTRGlobalSettings", [
                 F("LocationsWithBTR"),
+                F("BasePriceTaxi"),
+                F("AddPriceTaxi"),
+                F("CleanUpPrice"),
+                F("DeliveryPrice"),
+                F("ModDeliveryCost"),
+                F("BearPriceMod"),
+                F("UsecPriceMod"),
+                F("ScavPriceMod"),
+                F("CoefficientDiscountCharisma"),
+                F("TaxiMinPrice"),
+                F("DeliveryMinPrice"),
+                F("BotCoverMinPrice"),
                 F("MapsConfigs"),
             ]),
 
@@ -687,8 +699,9 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
                 F("pathsConfigurations"),
             ]),
 
-            // MapPathConfig (BTR route stops + depot)
+            // MapPathConfig (BTR route stops + spline edges + depot)
             C("MapPathConfig", [
+                F("PathSplines"),
                 F("PathDestinations"),
                 F("DepotPosition"),
             ], cs: "MapPathConfig"),

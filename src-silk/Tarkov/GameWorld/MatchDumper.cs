@@ -436,6 +436,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
                         TimeToEndPauseMs = b.TimeToEndPauseMs,
                         IsPaid = b.IsPaid,
                         TurretYawDeg = b.TurretYawDeg,
+                        NextStop = b.NextStop?.Name ?? b.NextStop?.Id,
                         GunnerPtr = $"0x{b.GunnerPtr:X}",
                     };
                 }
@@ -829,22 +830,49 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
                 sw.Flush();
                 Log.WriteLine($"[MatchDumper] Section BTR starting ({(DateTime.UtcNow - dumpStart).TotalSeconds:F1}s)");
                 // ── BTR ──────────────────────────────────────────────────────────
-                if (game.Btr is { IsActive: true } btrTracker)
+                // The BTR only spawns on Streets/Woods, so game.Btr is null elsewhere.
+                // Resolve it fresh here instead of relying on the live tracker's IsActive
+                // state: the realtime/explosives workers only tick the tracker while
+                // Config.ShowBTR is enabled, so a dump taken with BTR display off (or
+                // before the first worker resolve) would otherwise silently omit the whole
+                // section even though BtrController is present in the raid. Every other
+                // singleton (WeatherController, EFTHardSettings, …) self-resolves at dump
+                // time for exactly this reason. Always emit the header so an absent BTR is
+                // distinguishable from a failed resolve.
+                sw.WriteLine("═══════════════════════════════════════");
+                sw.WriteLine("SECTION: BTR");
+                sw.WriteLine("═══════════════════════════════════════");
+                if (game.Btr is { } btrTracker)
                 {
-                    sw.WriteLine("═══════════════════════════════════════");
-                    sw.WriteLine("SECTION: BTR");
-                    sw.WriteLine("═══════════════════════════════════════");
                     try
                     {
-                        sw.WriteLine($"// BTR pos=({btrTracker.Position.X:F1},{btrTracker.Position.Y:F1},{btrTracker.Position.Z:F1})" +
-                            $"  speed={btrTracker.CurrentSpeed:F2}  state={btrTracker.State}  routeState={btrTracker.RouteState}" +
-                            $"  paid={btrTracker.IsPaid}  turretYaw={btrTracker.TurretYawDeg:F1}" +
-                            $"  gunner=0x{btrTracker.GunnerPtr:X}");
-                        btrTracker.DumpAll(sw);
+                        // Force a resolve so the dump is independent of the ShowBTR toggle
+                        // and of whether the workers have ticked yet this raid.
+                        btrTracker.Refresh();
+                        btrTracker.UpdatePosition();
+
+                        if (btrTracker.IsActive)
+                        {
+                            sw.WriteLine($"// BTR pos=({btrTracker.Position.X:F1},{btrTracker.Position.Y:F1},{btrTracker.Position.Z:F1})" +
+                                $"  speed={btrTracker.CurrentSpeed:F2}  state={btrTracker.State}  routeState={btrTracker.RouteState}" +
+                                $"  paid={btrTracker.IsPaid}  turretYaw={btrTracker.TurretYawDeg:F1}" +
+                                $"  next={btrTracker.NextStop?.Name ?? btrTracker.NextStop?.Id ?? "?"}" +
+                                $"  gunner=0x{btrTracker.GunnerPtr:X}");
+                            btrTracker.DumpAll(sw);
+                        }
+                        else
+                        {
+                            sw.WriteLine("// BtrController/BTRView could not be resolved at dump time " +
+                                "(BTR may not have spawned yet, or its pointers are stale).");
+                        }
                     }
-                    catch { }
-                    sw.WriteLine();
+                    catch (Exception bex) { sw.WriteLine($"// BTR dump failed: {bex.Message}"); }
                 }
+                else
+                {
+                    sw.WriteLine($"// No BTR on this map ('{game.MapID}') — it only spawns on Streets and Woods.");
+                }
+                sw.WriteLine();
 
                 Log.WriteLine($"[MatchDumper] Section QuestLocations starting ({(DateTime.UtcNow - dumpStart).TotalSeconds:F1}s)");
                 // ── Quest locations ──────────────────────────────────────────────
@@ -928,15 +956,23 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
                         sw.WriteLine($"// [airdrop-{ai}] pos=({a.Position.X:F1},{a.Position.Y:F1},{a.Position.Z:F1})");
                     }
 
-                    // Live AirdropManager via GameWorld → SynchronizableObjectLogicProcessor (+0x0248) → AirdropManager (+0x0038)
+                    // Airdrop scheduling is largely server-side (ArtilleryShellingControllerServer owns
+                    // InitAirdrop / _airDropPosition), so the old client-side guess of
+                    // SynchronizableObjectLogicProcessor+0x38 returns null even when a crate is on the ground
+                    // (LootManager detects the crate independently via the "loot_collider" object). When the
+                    // +0x38 guess misses, dump the SyncObjLogicProcessor's real fields so the correct airdrop
+                    // pointer (if any client-side one exists) can be located from the offsets.
                     try
                     {
-                        const uint OffSyncObjLogicProcessor = 0x0248;
-                        const uint OffAirdropManager        = 0x0038;
-                        if (Memory.TryReadPtr(game.Base + OffSyncObjLogicProcessor, out var syncObjProc)
-                            && syncObjProc.IsValidVirtualAddress()
-                            && Memory.TryReadPtr(syncObjProc + OffAirdropManager, out var airdropMgr)
-                            && airdropMgr.IsValidVirtualAddress())
+                        const uint OffAirdropManager = 0x0038; // SyncObjLogicProcessor → AirdropManager
+                        Memory.TryReadPtr(game.Base + Offsets.ClientLocalGameWorld.SynchronizableObjectLogicProcessor, out var syncObjProc);
+                        bool syncOk = syncObjProc.IsValidVirtualAddress();
+                        ulong airdropMgr = 0;
+                        if (syncOk)
+                            Memory.TryReadPtr(syncObjProc + OffAirdropManager, out airdropMgr);
+                        sw.WriteLine($"// resolve: SyncObjLogicProcessor @ 0x{syncObjProc:X} ({(syncOk ? "ok" : "NULL")})" +
+                            $"  AirdropManager @ 0x{airdropMgr:X}");
+                        if (airdropMgr.IsValidVirtualAddress())
                         {
                             Il2CppDumper.DumpClassFieldsToWriter(airdropMgr, sw,
                                 $"AirdropManager @ 0x{airdropMgr:X}");
@@ -965,39 +1001,60 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
                             }
                             catch { sw.WriteLine("//   CachedAirdropParameters read failed"); }
 
-                            // _airdropPoints — List<AirdropPoint> read via MemList
-                            try
+                            // _airdropPoints / _deactivatedAirdropPoints — List<AirdropPoint>. AirdropPoint
+                            // has no fields; its position lives on its (scene-placed) transform, so resolve
+                            // that per point and print compact one-liners rather than empty class hierarchies.
+                            void DumpAirdropPointList(uint listFieldOffset, string name)
                             {
-                                if (Memory.TryReadPtr(airdropMgr + Offsets.AirdropManager._airdropPoints, out var pointsListObj)
-                                    && pointsListObj.IsValidVirtualAddress())
+                                try
                                 {
-                                    using var pts = MemList<ulong>.Get(pointsListObj, false);
-                                    if (pts.Count > 0)
+                                    if (!Memory.TryReadPtr(airdropMgr + listFieldOffset, out var listObj)
+                                        || !listObj.IsValidVirtualAddress())
                                     {
-                                        sw.WriteLine($"//   _airdropPoints count={pts.Count}");
-                                        for (int pi = 0; pi < pts.Count; pi++)
-                                        {
-                                            var pt = pts[pi];
-                                            if (!pt.IsValidVirtualAddress()) continue;
-                                            Il2CppDumper.DumpClassFieldsToWriter(pt, sw,
-                                                $"    AirdropPoint[{pi}] @ 0x{pt:X}");
-                                        }
+                                        sw.WriteLine($"//   {name}: list pointer null");
+                                        return;
                                     }
-                                    else
+
+                                    using var pts = MemList<ulong>.Get(listObj, false);
+                                    sw.WriteLine($"//   {name} count={pts.Count}");
+
+                                    const int Cap = 64;
+                                    int shown = Math.Min(pts.Count, Cap);
+                                    for (int pi = 0; pi < shown; pi++)
                                     {
-                                        sw.WriteLine("//   _airdropPoints: empty or not yet populated");
+                                        var pt = pts[pi];
+                                        if (!pt.IsValidVirtualAddress()) continue;
+
+                                        // AirdropPoint is a scene MonoBehaviour — try the scene chain first,
+                                        // then the full chain.
+                                        Vector3 pos = Vector3.Zero;
+                                        if (Memory.TryReadPtrChain(pt, eft_dma_radar.Silk.Tarkov.Unity.UnityOffsets.SceneTransformChain, out var ti, false)
+                                            && ti.IsValidVirtualAddress())
+                                            pos = eft_dma_radar.Silk.Tarkov.Unity.UnityOffsets.ReadWorldPosition(ti);
+                                        if (pos == Vector3.Zero
+                                            && Memory.TryReadPtrChain(pt, eft_dma_radar.Silk.Tarkov.Unity.UnityOffsets.TransformChain, out var ti2, false)
+                                            && ti2.IsValidVirtualAddress())
+                                            pos = eft_dma_radar.Silk.Tarkov.Unity.UnityOffsets.ReadWorldPosition(ti2);
+
+                                        sw.WriteLine($"//     {name}[{pi}] @ 0x{pt:X} pos=({pos.X:F1},{pos.Y:F1},{pos.Z:F1})");
                                     }
+                                    if (pts.Count > shown)
+                                        sw.WriteLine($"//     … {pts.Count - shown} more (capped at {Cap})");
                                 }
-                                else
-                                {
-                                    sw.WriteLine("//   _airdropPoints: list pointer null");
-                                }
+                                catch (Exception ex) { sw.WriteLine($"//   {name} walk failed: {ex.Message}"); }
                             }
-                            catch { sw.WriteLine("//   _airdropPoints walk failed"); }
+
+                            DumpAirdropPointList(Offsets.AirdropManager._airdropPoints, "_airdropPoints");
+                            DumpAirdropPointList(Offsets.AirdropManager._deactivatedAirdropPoints, "_deactivatedAirdropPoints");
                         }
                         else
                         {
-                            sw.WriteLine("// AirdropManager: pointer null or not yet initialized (no airdrop spawned yet this raid)");
+                            sw.WriteLine("// AirdropManager: not found at SyncObjLogicProcessor+0x38 "
+                                + "(airdrop scheduling is largely server-side; crate position(s) above come from "
+                                + "LootManager). Dumping SyncObjLogicProcessor fields to locate any client-side airdrop pointer:");
+                            if (syncOk)
+                                Il2CppDumper.DumpClassFieldsToWriter(syncObjProc, sw,
+                                    $"SynchronizableObjectLogicProcessor @ 0x{syncObjProc:X}");
                         }
                     }
                     catch { sw.WriteLine("// AirdropManager dump failed — skip"); }
@@ -2287,6 +2344,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
             [JsonPropertyName("timeToEndPauseMs")] public int TimeToEndPauseMs { get; init; }
             [JsonPropertyName("isPaid")]           public bool IsPaid { get; init; }
             [JsonPropertyName("turretYawDeg")]     public float TurretYawDeg { get; init; }
+            [JsonPropertyName("nextStop")]         public string? NextStop { get; init; }
             [JsonPropertyName("gunnerPtr")]        public string GunnerPtr { get; init; } = "";
         }
 

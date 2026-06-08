@@ -184,6 +184,39 @@ namespace SDK
             /// Array header: +0x18 = int length, entries at +0x20 spaced 8 bytes (System.String*).
             /// </summary>
             public static uint LocationsWithBTR = 0x10;
+
+            // ── Taxi pricing ─────────────────────────────────────────────────────
+            // These are the authoritative BTR price parameters. The per-destination
+            // BtrController.destinationPrices dictionary is computed/cached client-side
+            // and is empty until the BTR quotes a fare, so read prices from here instead.
+            // A taxi fare is roughly clamp(BasePriceTaxi + AddPriceTaxi * stopsAway, TaxiMinPrice)
+            // scaled by the side modifier (BEAR/USEC/Scav) and the charisma discount.
+
+            /// <summary><c>int BasePriceTaxi</c> — base taxi fare (e.g. 7000).</summary>
+            public static uint BasePriceTaxi = 0x18;
+            /// <summary><c>int AddPriceTaxi</c> — surcharge added per stop of distance (e.g. 500).</summary>
+            public static uint AddPriceTaxi = 0x1C;
+            /// <summary><c>int CleanUpPrice</c> — body cleanup service price (e.g. 50000).</summary>
+            public static uint CleanUpPrice = 0x20;
+            /// <summary><c>int DeliveryPrice</c> — item delivery base price (e.g. 500).</summary>
+            public static uint DeliveryPrice = 0x24;
+            /// <summary><c>float ModDeliveryCost</c> — per-mod delivery cost coefficient (e.g. 0.05).</summary>
+            public static uint ModDeliveryCost = 0x28;
+            /// <summary><c>float BearPriceMod</c> — BEAR price multiplier (e.g. 1.0).</summary>
+            public static uint BearPriceMod = 0x2C;
+            /// <summary><c>float UsecPriceMod</c> — USEC price multiplier (e.g. 1.5).</summary>
+            public static uint UsecPriceMod = 0x30;
+            /// <summary><c>float ScavPriceMod</c> — Scav price multiplier (e.g. 0.8).</summary>
+            public static uint ScavPriceMod = 0x34;
+            /// <summary><c>float CoefficientDiscountCharisma</c> — per-charisma-level discount (e.g. 0.002).</summary>
+            public static uint CoefficientDiscountCharisma = 0x38;
+            /// <summary><c>int TaxiMinPrice</c> — minimum taxi fare floor (e.g. 4000).</summary>
+            public static uint TaxiMinPrice = 0x3C;
+            /// <summary><c>int DeliveryMinPrice</c> — minimum delivery price floor (e.g. 1000).</summary>
+            public static uint DeliveryMinPrice = 0x40;
+            /// <summary><c>int BotCoverMinPrice</c> — minimum "bot cover" service price (e.g. 30000).</summary>
+            public static uint BotCoverMinPrice = 0x44;
+
             /// <summary>
             /// <c>Dictionary&lt;string, BTRMapPath&gt; MapsConfigs</c> — per-map BTR path configuration.
             /// </summary>
@@ -198,6 +231,12 @@ namespace SDK
         }
         public readonly partial struct MapPathConfig
         {
+            /// <summary>
+            /// <c>List&lt;PathSpline&gt; PathSplines</c> — the spline edges of the BTR road graph.
+            /// Each <c>PathSpline.id</c> (PathPartBase.id @ 0x20) is <c>"s_&lt;from&gt;_&lt;to&gt;"</c>,
+            /// naming the two route stops it connects (e.g. <c>"s_p1_p7"</c>).
+            /// </summary>
+            public static uint PathSplines = 0x70;
             /// <summary>
             /// <c>List&lt;PathDestination&gt; PathDestinations</c> — the ordered list of BTR route stops.
             /// Each entry is a MonoBehaviour; world position is read via the standard TransformChain.
