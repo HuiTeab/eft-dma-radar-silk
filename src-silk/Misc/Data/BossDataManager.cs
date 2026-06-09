@@ -202,7 +202,7 @@ namespace eft_dma_radar.Silk.Misc.Data
             _bosses = bosses;
             _mapBosses = maps;
             Loaded = true;
-            Status = $"{bosses.Count} bosses loaded";
+            Status = $"{bosses.Count} boss/follower kits (all maps)";
         }
 
         /// <summary>Projects the raw API response into the deduped cache model.</summary>

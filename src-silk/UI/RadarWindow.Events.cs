@@ -53,6 +53,8 @@ namespace eft_dma_radar.Silk.UI
                 _imguiFontHandle.Free();
             if (_iconGlyphRangesHandle.IsAllocated)
                 _iconGlyphRangesHandle.Free();
+            if (_cyrillicGlyphRangesHandle.IsAllocated)
+                _cyrillicGlyphRangesHandle.Free();
             _skSurface?.Dispose();
             _skBackendRenderTarget?.Dispose();
             _grContext?.Dispose();

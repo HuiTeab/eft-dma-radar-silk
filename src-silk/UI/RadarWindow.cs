@@ -90,6 +90,11 @@ namespace eft_dma_radar.Silk.UI
         // Pinned font data for ImGui — must remain alive for the lifetime of the atlas
         private static GCHandle _imguiFontHandle;
         private static GCHandle _iconGlyphRangesHandle;
+        private static GCHandle _cyrillicGlyphRangesHandle;
+
+        // Cyrillic block (U+0400–U+04FF) merged from Segoe UI, since the embedded NeoSansStd font
+        // has no Cyrillic glyphs and Russian player names would otherwise render as '?'.
+        private static readonly ushort[] _cyrillicGlyphRanges = [0x0400, 0x04FF, 0];
 
         // Icon glyph ranges for UI symbols — null-terminated pairs of (first, last).
         // These cover every non-ASCII icon used in the ImGui menus/panels.
@@ -98,6 +103,7 @@ namespace eft_dma_radar.Silk.UI
         private static readonly ushort[] _iconGlyphRanges =
         [
             0x00A0, 0x00FF, // Latin-1 supplement (·, etc.)
+            0x2000, 0x206F, // General punctuation (—, …, •, ‘’“”) — NeoSansStd lacks these
             0x20A0, 0x20CF, // Currency symbols (₽)
             0x2190, 0x21FF, // Arrows (→, ↻)
             0x2200, 0x22FF, // Mathematical operators (∴)

@@ -99,8 +99,10 @@ namespace eft_dma_radar.Silk.UI
             int dist = (int)Vector3.Distance(localPlayer.Position, player.Position);
 
             // Name + faction / category. Boss guards are promoted to AIRaider for coloring, so check
-            // the IsBossGuard flag first to label them "Guard" rather than "Raider".
-            string faction = player.IsBossGuard ? "Guard" : player.Type switch
+            // the IsBossGuard flag first to label them "Guard" — with the captured identifier name when known.
+            string faction = player.IsBossGuard
+                ? (string.IsNullOrEmpty(player.BossGuardLabel) ? "Guard" : $"Guard ({player.BossGuardLabel})")
+                : player.Type switch
             {
                 PlayerType.USEC => "USEC",
                 PlayerType.BEAR => "BEAR",
@@ -117,6 +119,10 @@ namespace eft_dma_radar.Silk.UI
 
             string namePrefix = player.Level > 0 ? $"Lvl {player.Level} " : "";
             _tooltipLines.Add(($"{faction}: {namePrefix}{player.Name}", textPaint));
+
+            // Why we flagged this AI as a boss guard (aids tuning the rules).
+            if (player.IsBossGuard && !string.IsNullOrEmpty(player.BossGuardMatch))
+                _tooltipLines.Add(($"Matched: {player.BossGuardMatch}", SKPaints.TooltipLabel));
 
             // Profile stats (K/D, hours, survival rate)
             if (player.Profile is { HasData: true } prof)

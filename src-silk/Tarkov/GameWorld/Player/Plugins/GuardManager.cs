@@ -131,6 +131,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player.Plugins
         /// <summary>Compiled form of a <see cref="GuardIdentifier"/> (gear pieces + match mode).</summary>
         private sealed class CompiledIdentifier
         {
+            public string Name = "";
             public bool MatchAll;
             public (string Slot, string Short)[] Gear = Array.Empty<(string, string)>();
         }
@@ -275,7 +276,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player.Plugins
                     if (!string.IsNullOrWhiteSpace(g.Slot) && !string.IsNullOrWhiteSpace(g.Short))
                         gear.Add((g.Slot.Trim(), g.Short.Trim()));
                 if (gear.Count > 0)
-                    result.Add(new CompiledIdentifier { MatchAll = id.MatchAll, Gear = gear.ToArray() });
+                    result.Add(new CompiledIdentifier { Name = id.Name ?? "", MatchAll = id.MatchAll, Gear = gear.ToArray() });
             }
             return result.Count == 0 ? Array.Empty<CompiledIdentifier>() : result.ToArray();
         }
@@ -304,86 +305,125 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player.Plugins
 
             if (string.IsNullOrEmpty(mapId))
                 return;
+            // Gear not read yet — leave the current state untouched to avoid flicker.
             if (player.Equipment is null || player.Equipment.Count == 0)
                 return;
 
             var snap = _compiled;
             if (!snap.TryGetValue(mapId, out var data))
+            {
+                // No (enabled) rule for this map — undo any promotion we previously made.
+                Demote(player);
                 return;
+            }
 
+            string? label = null;
+            string? reason = null;
             bool matched;
             if (data.RequireKnifeAndShotgun)
-                matched = IsWoodsGuard(player);
-            else
-                matched = MatchesBackpack(player, data)
-                       || MatchesHelmet(player, data)
-                       || MatchesWeapon(player, data)
-                       || MatchesAmmo(player, data)
-                       || MatchesCustom(player, data);
-
-            if (matched && !player.IsBossGuard)
             {
-                player.IsBossGuard = true;
-                if (player.Type != PlayerType.AIRaider)
+                matched = IsWoodsGuard(player);
+                if (matched) reason = "Knife + 12ga";
+            }
+            else
+            {
+                matched = TryMatch(player, data, out label, out reason);
+            }
+
+            if (matched)
+            {
+                if (!player.IsBossGuard)
                 {
-                    player.OriginalType ??= player.Type;
-                    player.Type = PlayerType.AIRaider;
+                    player.IsBossGuard = true;
+                    if (player.Type != PlayerType.AIRaider)
+                    {
+                        player.OriginalType ??= player.Type;
+                        player.Type = PlayerType.AIRaider;
+                    }
+                    Log.WriteLine($"[GuardManager] Identified '{player.Name}' as boss guard on '{mapId}' ({reason}).");
                 }
-                Log.WriteLine($"[GuardManager] Identified '{player.Name}' as boss guard on '{mapId}'.");
+                player.BossGuardLabel = label;
+                player.BossGuardMatch = reason;
+            }
+            else
+            {
+                // Gear no longer matches any rule (e.g. the user edited rules mid-raid) — demote.
+                Demote(player);
             }
         }
 
-        /// <summary>Reverts a player we previously promoted back to its original type.</summary>
+        /// <summary>Reverts a player we previously promoted back to its original type, clearing labels.</summary>
         private static void Demote(Player player)
         {
             if (!player.IsBossGuard)
                 return;
             player.IsBossGuard = false;
+            player.BossGuardLabel = null;
+            player.BossGuardMatch = null;
             if (player.OriginalType is { } original)
                 player.Type = original;
         }
 
-        private static bool MatchesBackpack(Player p, CompiledRule d)
+        /// <summary>
+        /// Tests the flat lists then the custom identifiers, reporting the first match's
+        /// <paramref name="reason"/> (always set on a hit) and <paramref name="label"/>
+        /// (the custom-identifier name, or null for flat-list matches).
+        /// </summary>
+        private static bool TryMatch(Player p, CompiledRule d, out string? label, out string? reason)
         {
-            if (d.Backpacks.Count == 0) return false;
-            return p.Equipment.TryGetValue("Backpack", out var bp) && bp is not null && d.Backpacks.Contains(bp.Short);
-        }
+            label = null;
+            reason = null;
 
-        private static bool MatchesHelmet(Player p, CompiledRule d)
-        {
-            if (d.Helmets.Count == 0) return false;
-            return p.Equipment.TryGetValue("Headwear", out var h) && h is not null && d.Helmets.Contains(h.Short);
-        }
-
-        private static bool MatchesWeapon(Player p, CompiledRule d)
-        {
-            if (d.Weapons.Count == 0) return false;
-            if (p.Equipment.TryGetValue("FirstPrimaryWeapon", out var w1) && w1 is not null && d.Weapons.Contains(w1.Short))
+            if (d.Helmets.Count > 0
+                && p.Equipment.TryGetValue("Headwear", out var h) && h is not null && d.Helmets.Contains(h.Short))
+            {
+                reason = "Helmet: " + h.Short;
                 return true;
-            if (p.Equipment.TryGetValue("SecondPrimaryWeapon", out var w2) && w2 is not null && d.Weapons.Contains(w2.Short))
+            }
+            if (d.Backpacks.Count > 0
+                && p.Equipment.TryGetValue("Backpack", out var bp) && bp is not null && d.Backpacks.Contains(bp.Short))
+            {
+                reason = "Backpack: " + bp.Short;
                 return true;
-            if (p.Equipment.TryGetValue("Holster", out var wh) && wh is not null && d.Weapons.Contains(wh.Short))
+            }
+            if (d.Weapons.Count > 0 && TryMatchWeapon(p, d.Weapons, out var wShort))
+            {
+                reason = "Weapon: " + wShort;
                 return true;
+            }
+            if (d.Ammo.Count > 0 && TryMatchAmmo(p, d.Ammo, out var aShort))
+            {
+                reason = "Ammo: " + aShort;
+                return true;
+            }
+            foreach (var id in d.Custom)
+            {
+                if (MatchesIdentifier(p, id))
+                {
+                    label = id.Name;
+                    reason = string.IsNullOrEmpty(id.Name) ? "Custom kit" : "Kit: " + id.Name;
+                    return true;
+                }
+            }
             return false;
         }
 
-        private static bool MatchesAmmo(Player p, CompiledRule d)
+        private static bool TryMatchWeapon(Player p, FrozenSet<string> weapons, out string? matched)
         {
-            if (d.Ammo.Count == 0) return false;
+            matched = null;
+            if (p.Equipment.TryGetValue("FirstPrimaryWeapon", out var w1) && w1 is not null && weapons.Contains(w1.Short)) { matched = w1.Short; return true; }
+            if (p.Equipment.TryGetValue("SecondPrimaryWeapon", out var w2) && w2 is not null && weapons.Contains(w2.Short)) { matched = w2.Short; return true; }
+            if (p.Equipment.TryGetValue("Holster", out var wh) && wh is not null && weapons.Contains(wh.Short)) { matched = wh.Short; return true; }
+            return false;
+        }
+
+        private static bool TryMatchAmmo(Player p, FrozenSet<string> ammoSet, out string? matched)
+        {
+            matched = null;
             var ammo = p.InHandsAmmo;
             if (string.IsNullOrEmpty(ammo)) return false;
-            foreach (var a in d.Ammo)
-                if (ammo.Contains(a, StringComparison.OrdinalIgnoreCase))
-                    return true;
-            return false;
-        }
-
-        /// <summary>True if the player matches any of the rule's custom/captured identifiers.</summary>
-        private static bool MatchesCustom(Player p, CompiledRule d)
-        {
-            foreach (var id in d.Custom)
-                if (MatchesIdentifier(p, id))
-                    return true;
+            foreach (var a in ammoSet)
+                if (ammo.Contains(a, StringComparison.OrdinalIgnoreCase)) { matched = a; return true; }
             return false;
         }
 

@@ -17,36 +17,9 @@ namespace eft_dma_radar.Silk.UI.Panels
         // ── Per-row deletion confirmation ──
         private static string? _pendingDeleteId;
 
-        // ── Description tooltip text for each toggle row ──
-        private static readonly (string Label, string Tooltip, System.Func<RadarPresetEntry, bool> Get, System.Action<RadarPresetEntry, bool> Set)[] _presetToggles =
-        [
-            ("Battle Mode",     "Hide non-combat clutter (loot / corpses / containers).",
-                p => p.BattleMode,     (p, v) => p.BattleMode = v),
-            ("Show Loot",       "Show loose loot items on the radar.",
-                p => p.ShowLoot,       (p, v) => p.ShowLoot = v),
-            ("Show Corpses",    "Show dead player corpses (recent kills).",
-                p => p.ShowCorpses,    (p, v) => p.ShowCorpses = v),
-            ("Show Containers", "Show static loot containers.",
-                p => p.ShowContainers, (p, v) => p.ShowContainers = v),
-            ("Show Exfils",     "Show extraction points.",
-                p => p.ShowExfils,     (p, v) => p.ShowExfils = v),
-            ("Show Doors",      "Show keyed / mechanical doors.",
-                p => p.ShowDoors,      (p, v) => p.ShowDoors = v),
-            ("Show Airdrops",   "Show airdrop crates.",
-                p => p.ShowAirdrops,   (p, v) => p.ShowAirdrops = v),
-            ("Show Switches",   "Show interactable switches / levers / buttons.",
-                p => p.ShowSwitches,   (p, v) => p.ShowSwitches = v),
-            ("Show Transits",   "Show map-to-map transit points.",
-                p => p.ShowTransits,   (p, v) => p.ShowTransits = v),
-            ("Show Aimlines",   "Show direction lines on player markers.",
-                p => p.ShowAimlines,   (p, v) => p.ShowAimlines = v),
-            ("Connect Groups",  "Draw lines between players in the same group.",
-                p => p.ConnectGroups,  (p, v) => p.ConnectGroups = v),
-            ("High Alert",      "Extend aimline when an enemy is aiming at you.",
-                p => p.HighAlert,      (p, v) => p.HighAlert = v),
-            ("Players On Top",  "Draw players above loot / containers so dots stay visible.",
-                p => p.PlayersOnTop,   (p, v) => p.PlayersOnTop = v),
-        ];
+        // Display order of toggle groups in the per-preset editor. The toggles themselves are the
+        // single source of truth in PresetManager.Toggles (each tagged with its Group).
+        private static readonly string[] _presetGroupOrder = ["General", "Players", "World", "Doors", "Loot", "Combat", "Aimview", "ESP", "Performance"];
 
         private static void DrawPresetsTab()
         {
@@ -197,37 +170,7 @@ namespace eft_dma_radar.Silk.UI.Panels
 
                 ImGui.Spacing();
                 ImGui.TextDisabled("Toggles (saved in this preset):");
-
-                // Two-column layout of toggle checkboxes
-                int n = _presetToggles.Length;
-                int rows = (n + 1) / 2;
-                if (ImGui.BeginTable("##presetToggles", 2, ImGuiTableFlags.SizingStretchProp))
-                {
-                    for (int r = 0; r < rows; r++)
-                    {
-                        ImGui.TableNextRow();
-                        for (int c = 0; c < 2; c++)
-                        {
-                            int i = r + c * rows;
-                            if (i >= n) { ImGui.TableNextColumn(); continue; }
-                            ImGui.TableNextColumn();
-                            var t = _presetToggles[i];
-                            bool v = t.Get(preset);
-                            if (ImGui.Checkbox($"{t.Label}##{preset.Id}_{i}", ref v))
-                            {
-                                t.Set(preset, v);
-                                Config.MarkDirty();
-                                // If this preset is currently active, re-apply so the
-                                // live radar state immediately reflects the new toggle.
-                                if (isActive)
-                                    PresetManager.Apply(preset.Id, Config);
-                            }
-                            if (ImGui.IsItemHovered())
-                                ImGui.SetTooltip(t.Tooltip);
-                        }
-                    }
-                    ImGui.EndTable();
-                }
+                DrawPresetToggleGroups(preset, isActive);
 
                 ImGui.TreePop();
             }
@@ -239,12 +182,99 @@ namespace eft_dma_radar.Silk.UI.Panels
             ImGui.PopID();
         }
 
+        /// <summary>Renders the preset's settings grouped: bool toggles as checkboxes, ints as sliders.</summary>
+        private static void DrawPresetToggleGroups(RadarPresetEntry preset, bool isActive)
+        {
+            foreach (var group in _presetGroupOrder)
+            {
+                // Integer-valued groups (e.g. Performance / FPS) render as sliders, not checkboxes.
+                if (group == "Performance")
+                {
+                    DrawPresetValueGroup(preset, isActive, group);
+                    continue;
+                }
+
+                ImGui.Spacing();
+                ImGui.TextColored(new Vector4(0.55f, 0.78f, 0.92f, 1f), group);
+
+                // Per-group All / None — handy now the toggle list is long.
+                ImGui.SameLine();
+                if (ImGui.SmallButton($"All##all_{preset.Id}_{group}"))
+                    SetGroupAll(preset, isActive, group, true);
+                ImGui.SameLine();
+                if (ImGui.SmallButton($"None##none_{preset.Id}_{group}"))
+                    SetGroupAll(preset, isActive, group, false);
+
+                if (!ImGui.BeginTable($"##pt_{preset.Id}_{group}", 2, ImGuiTableFlags.SizingStretchProp))
+                    continue;
+
+                int col = 0;
+                foreach (var t in PresetManager.Toggles)
+                {
+                    if (t.Group != group)
+                        continue;
+                    if (col % 2 == 0)
+                        ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+
+                    bool v = t.GetEntry(preset);
+                    if (ImGui.Checkbox($"{t.Label}##{preset.Id}_{t.Label}", ref v))
+                    {
+                        t.SetEntry(preset, v);
+                        Config.MarkDirty();
+                        // Re-apply live if this preset is active so the radar reflects the change now.
+                        if (isActive)
+                            PresetManager.Apply(preset.Id, Config);
+                    }
+                    if (ImGui.IsItemHovered())
+                        ImGui.SetTooltip(t.Tooltip);
+                    col++;
+                }
+                ImGui.EndTable();
+            }
+        }
+
+        /// <summary>Sets every toggle in a group on/off for the preset (the "All" / "None" buttons).</summary>
+        private static void SetGroupAll(RadarPresetEntry preset, bool isActive, string group, bool value)
+        {
+            foreach (var t in PresetManager.Toggles)
+                if (t.Group == group)
+                    t.SetEntry(preset, value);
+            Config.MarkDirty();
+            if (isActive)
+                PresetManager.Apply(preset.Id, Config);
+        }
+
+        /// <summary>Renders the integer (slider) preset settings for a group — e.g. Performance / FPS caps.</summary>
+        private static void DrawPresetValueGroup(RadarPresetEntry preset, bool isActive, string group)
+        {
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(0.55f, 0.78f, 0.92f, 1f), group);
+            ImGui.PushItemWidth(200f * Config.UIScale);
+            foreach (var s in PresetManager.Values)
+            {
+                if (s.Group != group)
+                    continue;
+                int val = s.GetEntry(preset);
+                if (ImGui.SliderInt($"{s.Label}##{preset.Id}_{s.Label}", ref val, s.Min, s.Max))
+                {
+                    s.SetEntry(preset, val);
+                    Config.MarkDirty();
+                    if (isActive)
+                        PresetManager.Apply(preset.Id, Config);
+                }
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip(s.Tooltip);
+            }
+            ImGui.PopItemWidth();
+        }
+
         private static void DrawSaveCurrentForm()
         {
             ImGui.PushStyleColor(ImGuiCol.Text, UITheme.Cyan);
             ImGui.TextUnformatted("Save current radar state as a new preset");
             ImGui.PopStyleColor();
-            ImGui.TextDisabled("Captures all 13 toggles from the live radar into a new named preset.");
+            ImGui.TextDisabled("Captures every radar toggle from the live radar into a new named preset.");
             ImGui.Spacing();
 
             ImGui.PushItemWidth(280f * Config.UIScale);

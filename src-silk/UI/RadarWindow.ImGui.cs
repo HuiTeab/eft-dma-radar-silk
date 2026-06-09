@@ -920,6 +920,34 @@ namespace eft_dma_radar.Silk.UI
             {
                 Log.WriteLine("[RadarWindow] WARNING: seguisym.ttf not found, icons may render as '?'.");
             }
+
+            // Merge Segoe UI for Cyrillic — NeoSansStd has no Cyrillic glyphs, so Russian player
+            // names render as '?' without this. Segoe UI ships with Windows and covers U+0400–04FF.
+            var cyrillicFontPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Fonts),
+                "segoeui.ttf");
+
+            if (File.Exists(cyrillicFontPath))
+            {
+                _cyrillicGlyphRangesHandle = GCHandle.Alloc(_cyrillicGlyphRanges, GCHandleType.Pinned);
+
+                var cyrConfig = ImGuiNative.ImFontConfig_ImFontConfig();
+                cyrConfig->MergeMode = 1; // Merge into the previously added font
+                cyrConfig->FontDataOwnedByAtlas = 1; // ImGui owns file-loaded data
+
+                io.Fonts.AddFontFromFileTTF(
+                    cyrillicFontPath,
+                    13.0f,
+                    new ImFontConfigPtr(cyrConfig),
+                    _cyrillicGlyphRangesHandle.AddrOfPinnedObject());
+
+                ImGuiNative.ImFontConfig_destroy(cyrConfig);
+                Log.WriteLine("[RadarWindow] Cyrillic font (Segoe UI) merged for ImGui.");
+            }
+            else
+            {
+                Log.WriteLine("[RadarWindow] WARNING: segoeui.ttf not found, Cyrillic names may render as '?'.");
+            }
         }
 
         /// <summary>

@@ -66,6 +66,19 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player
         /// <summary>True when identified by <see cref="GuardManager"/> as a boss guard.</summary>
         public bool IsBossGuard { get; set; }
 
+        /// <summary>
+        /// For a promoted boss guard matched by a named custom identifier: that identifier's name,
+        /// shown on overlays (radar tooltip / ESP) in place of the generic "Guard". Null for
+        /// default flat-list / knife matches and when not flagged.
+        /// </summary>
+        public string? BossGuardLabel { get; set; }
+
+        /// <summary>
+        /// For a promoted boss guard: a short "why it matched" reason (e.g. "Helmet: Altyn",
+        /// "Kit: Kaban guard") for the radar tooltip. Null when not flagged.
+        /// </summary>
+        public string? BossGuardMatch { get; set; }
+
         #endregion
 
         #region BTR

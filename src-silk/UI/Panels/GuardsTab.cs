@@ -66,6 +66,15 @@ namespace eft_dma_radar.Silk.UI.Panels
                 ImGui.SetTooltip("Re-download boss/follower spawn gear from tarkov.dev.\n" +
                     "Use the picker inside each map below to turn a follower's real gear into an identifier.");
 
+            // Live count of AI currently promoted to guards — a quick gauge of false positives while tuning.
+            if (Memory.InRaid && Memory.Players is { } livePlayers)
+            {
+                int flagged = 0;
+                foreach (var lp in livePlayers)
+                    if (lp.IsBossGuard) flagged++;
+                ImGui.TextDisabled($"Currently flagged as guards: {flagged}");
+            }
+
             ImGui.Spacing();
 
             if (!enabled)
@@ -332,6 +341,18 @@ namespace eft_dma_radar.Silk.UI.Panels
             ImGui.TextDisabled("Capture from a live raid below, or add pieces by hand.");
             ImGui.Spacing();
 
+            // One-click: seed named identifiers from this map's tarkov.dev boss/follower gear.
+            var tdEntries = BossDataManager.GetMapEntries(mapId);
+            ImGui.BeginDisabled(tdEntries is null || tdEntries.Count == 0);
+            if (ImGui.Button($"Generate from tarkov.dev##gen_{mapId}"))
+                GenerateIdentifiersFromTarkovDev(mapId, rule, tdEntries);
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Create one named identifier per boss/follower on this map from their\n" +
+                    "tarkov.dev spawn gear (helmets, or weapons if they wear none). Match = ANY;\n" +
+                    "they show their name on the radar/ESP. Prune or disable any that over-match.");
+            ImGui.Spacing();
+
             // ── Existing identifiers ──
             int removeAt = -1;
             for (int i = 0; i < rule.Custom.Count; i++)
@@ -588,6 +609,71 @@ namespace eft_dma_radar.Silk.UI.Panels
             PlayerType.AIRaider => "Raider",
             _ => "Scav",
         };
+
+        /// <summary>
+        /// Seeds one ANY-match custom identifier per boss/follower on the map from tarkov.dev spawn
+        /// gear: their headwear short-names (most distinctive), or weapons when they wear no helmet
+        /// (e.g. Kaban). Skips mobs that already have a same-named identifier. The user prunes from there.
+        /// </summary>
+        private static void GenerateIdentifiersFromTarkovDev(string mapId, GuardMapRule rule, List<MapBossEntry>? entries)
+        {
+            if (entries is null || entries.Count == 0)
+                return;
+
+            var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var c in rule.Custom)
+                if (!string.IsNullOrEmpty(c.Name))
+                    existing.Add(c.Name);
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int added = 0;
+            foreach (var entry in entries)
+            {
+                added += AddGeneratedIdentifier(entry.BossNorm, rule, existing, seen);
+                foreach (var esc in entry.EscortNorms)
+                    added += AddGeneratedIdentifier(esc, rule, existing, seen);
+            }
+            if (added > 0)
+                GuardChanged();
+        }
+
+        /// <summary>Builds one generated identifier for a boss/follower; returns 1 if added, else 0.</summary>
+        private static int AddGeneratedIdentifier(string norm, GuardMapRule rule,
+            HashSet<string> existing, HashSet<string> seen)
+        {
+            if (string.IsNullOrEmpty(norm) || !seen.Add(norm))
+                return 0;
+            if (!BossDataManager.TryGetBoss(norm, out var info) || info is null || info.Equipment.Count == 0)
+                return 0;
+            if (existing.Contains(info.Name))
+                return 0;
+
+            var id = new GuardIdentifier { Name = info.Name, MatchAll = false };
+            var picked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Prefer distinctive headwear.
+            foreach (var it in info.Equipment)
+                if (it.Slot == GuardGearSlot.Headwear && picked.Add(it.ShortName))
+                    id.Gear.Add(new GuardGearMatch { Slot = "Headwear", Short = it.ShortName });
+
+            // Helmetless bosses (e.g. Kaban) — fall back to their weapons, capped to keep the list sane.
+            if (id.Gear.Count == 0)
+                foreach (var it in info.Equipment)
+                {
+                    if (it.Slot != GuardGearSlot.Weapon || !picked.Add(it.ShortName))
+                        continue;
+                    id.Gear.Add(new GuardGearMatch { Slot = "FirstPrimaryWeapon", Short = it.ShortName });
+                    if (id.Gear.Count >= 12)
+                        break;
+                }
+
+            if (id.Gear.Count == 0)
+                return 0;
+
+            rule.Custom.Add(id);
+            existing.Add(info.Name);
+            return 1;
+        }
 
         private static void GuardChanged()
         {

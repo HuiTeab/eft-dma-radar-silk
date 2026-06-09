@@ -75,6 +75,49 @@ namespace eft_dma_radar.Silk.Config
         [JsonPropertyName("connectGroups")] public bool ConnectGroups { get; set; } = true;
         [JsonPropertyName("highAlert")] public bool HighAlert { get; set; } = true;
         [JsonPropertyName("playersOnTop")] public bool PlayersOnTop { get; set; }
+
+        // ── Added 2026-06-09: previously preset-uncovered radar toggles. Defaults match the live
+        //    SilkConfig defaults so applying an older preset (saved before these existed) is low-surprise.
+        [JsonPropertyName("showQuests")] public bool ShowQuests { get; set; } = true;
+        [JsonPropertyName("showMapMarkers")] public bool ShowMapMarkers { get; set; } = true;
+        [JsonPropertyName("showBtr")] public bool ShowBTR { get; set; } = true;
+        [JsonPropertyName("showBtrRoute")] public bool ShowBTRRoute { get; set; } = true;
+        [JsonPropertyName("hideInactiveExfils")] public bool HideInactiveExfils { get; set; } = true;
+        [JsonPropertyName("showKillFeed")] public bool ShowKillFeed { get; set; } = true;
+        [JsonPropertyName("showExplosives")] public bool ShowExplosives { get; set; } = true;
+        [JsonPropertyName("showTripwireLines")] public bool ShowTripwireLines { get; set; } = true;
+        [JsonPropertyName("guardIdentification")] public bool GuardIdentificationEnabled { get; set; } = true;
+        [JsonPropertyName("showLockedDoors")] public bool ShowLockedDoors { get; set; } = true;
+        [JsonPropertyName("showUnlockedDoors")] public bool ShowUnlockedDoors { get; set; } = true;
+        [JsonPropertyName("showCorpseValue")] public bool ShowCorpseValue { get; set; } = true;
+        [JsonPropertyName("showCorpseInventory")] public bool ShowCorpseInventory { get; set; } = true;
+        [JsonPropertyName("showContainerNames")] public bool ShowContainerNames { get; set; } = true;
+        [JsonPropertyName("hideSearchedContainers")] public bool HideSearchedContainers { get; set; } = true;
+
+        // ── Aimview widget ──
+        [JsonPropertyName("showAimview")] public bool ShowAimview { get; set; } = true;
+        [JsonPropertyName("aimviewShowLoot")] public bool AimviewShowLoot { get; set; } = true;
+        [JsonPropertyName("aimviewShowCorpses")] public bool AimviewShowCorpses { get; set; } = true;
+        [JsonPropertyName("aimviewShowContainers")] public bool AimviewShowContainers { get; set; } = true;
+        [JsonPropertyName("aimviewShowSkeleton")] public bool AimviewShowSkeleton { get; set; } = true;
+        [JsonPropertyName("aimviewShowPlayerLabels")] public bool AimviewShowPlayerLabels { get; set; } = true;
+        [JsonPropertyName("aimviewShowItemLabels")] public bool AimviewShowItemLabels { get; set; } = true;
+        [JsonPropertyName("aimviewHideAIPlayers")] public bool AimviewHideAIPlayers { get; set; }
+
+        // ── ESP overlay ──
+        [JsonPropertyName("showEspWidget")] public bool ShowEspWidget { get; set; }
+        [JsonPropertyName("espShowPlayers")] public bool EspShowPlayers { get; set; } = true;
+        [JsonPropertyName("espShowLoot")] public bool EspShowLoot { get; set; } = true;
+        [JsonPropertyName("espShowBones")] public bool EspShowBones { get; set; } = true;
+        [JsonPropertyName("espShowCrosshair")] public bool EspShowCrosshair { get; set; }
+        [JsonPropertyName("espShowFps")] public bool EspShowFps { get; set; } = true;
+        [JsonPropertyName("espShowStatusText")] public bool EspShowStatusText { get; set; } = true;
+        [JsonPropertyName("espShowEnergyHydration")] public bool EspShowEnergyHydration { get; set; }
+
+        // ── Performance (int FPS targets; defaults match the live SilkConfig defaults) ──
+        [JsonPropertyName("targetFps")] public int TargetFps { get; set; } = 60;
+        [JsonPropertyName("realtimeTargetFps")] public int RealtimeTargetFps { get; set; } = 125;
+        [JsonPropertyName("espTargetFps")] public int EspTargetFps { get; set; } = 144;
     }
 
     /// <summary>

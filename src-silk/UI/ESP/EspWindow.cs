@@ -527,7 +527,10 @@ namespace eft_dma_radar.Silk.UI.ESP
                 DrawBones(canvas, player);
 
             // ---- Labels ----
-            string name = player.Name;
+            // Boss guards matched by a named custom identifier show that name (e.g. "Kaban guard").
+            string name = (player.IsBossGuard && player.BossGuardLabel is { Length: > 0 } guardLabel)
+                ? guardLabel
+                : player.Name;
             if (!string.IsNullOrEmpty(name))
             {
                 float nameWidth = EspPaints.FontName.MeasureText(name);
