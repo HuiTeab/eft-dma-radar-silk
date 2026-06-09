@@ -182,6 +182,37 @@ namespace eft_dma_radar.Silk.Web
                 ctx.Response.Headers.CacheControl = "public, max-age=86400, immutable";
                 return Results.Bytes(bytes, "image/png");
             });
+            _host.MapPost("/api/markers", async (HttpContext ctx) =>
+            {
+                // Buddies add SHARED markers here (local markers live only in their browser).
+                // The marker joins the host's shared list and rides the next /api/radar tick
+                // out to everyone, so no explicit GET is needed.
+                try
+                {
+                    var dto = await ctx.Request.ReadFromJsonAsync<MarkerCreateRequest>(ctx.RequestAborted)
+                        .ConfigureAwait(false);
+                    if (dto is null || string.IsNullOrWhiteSpace(dto.MapId))
+                        return Results.BadRequest();
+
+                    var pos = new System.Numerics.Vector3(dto.X, dto.Y, dto.Z);
+                    var marker = MapMarkerManager.Add(
+                        dto.MapId!, pos, dto.Label, dto.Color, shared: true, createdBy: "web");
+                    return Results.Json(WebRadarMarker.Create(marker), _jsonOpts);
+                }
+                catch
+                {
+                    return Results.BadRequest();
+                }
+            });
+            _host.MapDelete("/api/markers/{id}", (string id) =>
+            {
+                // Only shared markers are deletable from the web (those are the only ones
+                // a buddy can see). Removing one drops it for everyone on the next tick.
+                if (MapMarkerManager.TryGet(id, out var existing) && existing is { Shared: true }
+                    && MapMarkerManager.Remove(id))
+                    return Results.Ok();
+                return Results.NotFound();
+            });
             _host.MapGet("/health", () => Results.Text("OK"));
 
             await _host.StartAsync().ConfigureAwait(false);
@@ -447,6 +478,29 @@ namespace eft_dma_radar.Silk.Web
                     else
                     {
                         update.Airdrops = null;
+                    }
+
+                    // Shared map markers for the current map. Local markers stay on the
+                    // host; only shared/global ones are broadcast so every buddy sees them.
+                    var markerMapId = Memory.MapID;
+                    if (!string.IsNullOrEmpty(markerMapId))
+                    {
+                        var shared = MapMarkerManager.GetForMap(markerMapId, includeLocal: false, includeShared: true);
+                        if (shared.Count > 0)
+                        {
+                            var markerArr = new WebRadarMarker[shared.Count];
+                            for (int i = 0; i < shared.Count; i++)
+                                markerArr[i] = WebRadarMarker.Create(shared[i]);
+                            update.Markers = markerArr;
+                        }
+                        else
+                        {
+                            update.Markers = null;
+                        }
+                    }
+                    else
+                    {
+                        update.Markers = null;
                     }
 
                     // Live camera state (FOV / ADS / scoped) — lets the buddy
@@ -721,6 +775,17 @@ namespace eft_dma_radar.Silk.Web
             if (ip[0] == 10) return true;
             if (ip[0] == 172 && ip[1] >= 16 && ip[1] <= 31) return true;
             return false;
+        }
+
+        /// <summary>Request body for <c>POST /api/markers</c> (bound case-insensitively from camelCase JSON).</summary>
+        private sealed class MarkerCreateRequest
+        {
+            public string? MapId { get; set; }
+            public float X { get; set; }
+            public float Y { get; set; }
+            public float Z { get; set; }
+            public string? Label { get; set; }
+            public string? Color { get; set; }
         }
     }
 }

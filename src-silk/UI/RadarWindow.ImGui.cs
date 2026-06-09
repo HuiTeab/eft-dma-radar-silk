@@ -183,6 +183,12 @@ namespace eft_dma_radar.Silk.UI
             if (ImGui.MenuItem("⚡ Switches", null, showSwitches))
             { Config.ShowSwitches = !Config.ShowSwitches; Config.MarkDirty(); }
 
+            bool showMarkers = Config.ShowMapMarkers;
+            if (ImGui.MenuItem("◆ Map Markers", null, showMarkers))
+            { Config.ShowMapMarkers = !Config.ShowMapMarkers; Config.MarkDirty(); }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Show user-placed markers. Right-click the map to add one.");
+
             ImGui.Separator();
             ImGui.TextDisabled("Player Display");
 
@@ -660,6 +666,9 @@ namespace eft_dma_radar.Silk.UI
         private static void DrawWindows()
         {
             HotkeyManagerPanel.ProcessCapture();
+
+            // Map marker create/edit popup (latches a deferred right-click open request).
+            DrawMarkerEditorPopup();
 
             if (SettingsPanel.IsOpen)
                 SettingsPanel.Draw();

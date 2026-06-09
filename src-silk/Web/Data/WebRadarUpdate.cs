@@ -43,6 +43,9 @@ namespace eft_dma_radar.Silk.Web.Data
         public WebRadarBtr? Btr { get; set; }
         public WebRadarAirdrop[]? Airdrops { get; set; }
 
+        /// <summary>Shared/global map markers for the current map (local markers are not broadcast).</summary>
+        public WebRadarMarker[]? Markers { get; set; }
+
         /// <summary>Live camera state (FOV, ADS, scoped, viewport) from the host.</summary>
         public WebRadarCamera? Camera { get; set; }
     }

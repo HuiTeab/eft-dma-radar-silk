@@ -325,6 +325,11 @@
         Airdrops
         <span class="toggle-switch"><input type="checkbox" id="showAirdrops"><span class="slider"></span></span>
       </label>
+      <label>
+        Map Markers
+        <span class="toggle-switch"><input type="checkbox" id="showMarkers"><span class="slider"></span></span>
+      </label>
+      <p class="hint">Right-click the map (or tap the ◆ button) to drop a marker. Local stays on this device; Shared syncs to everyone.</p>
     </div>
 
     <div class="section">
@@ -570,6 +575,19 @@
     <button class="bsheet-close" id="bsheetClose" title="Close">×</button>
   </div>
   <div id="bsheetBody" class="bsheet-body"></div>
+</div>
+
+<!-- Add-marker button (bottom-right, above the FAB) -->
+<button id="markerBtn" class="marker-btn" title="Add map marker — then click the map">
+  <span class="marker-btn-icon">◆</span>
+</button>
+
+<!-- Marker create/edit popover -->
+<div id="markerPopover" class="marker-popover" hidden>
+  <div class="mp-title" id="mpTitle">New marker</div>
+  <input id="mpLabel" class="mp-label" type="text" placeholder="Label (optional)" maxlength="64" autocomplete="off" />
+  <div class="mp-colors" id="mpColors"></div>
+  <div class="mp-actions" id="mpActions"></div>
 </div>
 
 <!-- FAB radial menu (bottom-right, above tab bar) -->

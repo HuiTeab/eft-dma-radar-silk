@@ -72,6 +72,44 @@ namespace eft_dma_radar.Silk.UI.Maps
         }
 
         /// <summary>
+        /// Inverse of <see cref="ToScreenPos"/>: converts an (unzoomed) screen point back
+        /// into map-space coordinates. Used for click-to-place map markers.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Vector2 ScreenToMapPos(SKPoint screen)
+        {
+            return new Vector2(
+                screen.X / XScale + Bounds.Left,
+                screen.Y / YScale + Bounds.Top);
+        }
+
+        /// <summary>
+        /// Inverse of <see cref="ToMapPos"/>: recovers a Unity world position from a
+        /// map-space point. The vertical (Y) axis can't be recovered from a 2-D click, so
+        /// the caller supplies <paramref name="worldY"/> (typically the local player's height).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Vector3 MapPosToWorld(Vector2 mapPos, MapConfig cfg, float worldY)
+        {
+            float s = cfg.Scale * cfg.SvgScale;
+            float bx = cfg.X * cfg.SvgScale;
+            float by = cfg.Y * cfg.SvgScale;
+            float mx = mapPos.X - bx;
+            float my = mapPos.Y - by;
+
+            // Invert the per-rotation axis/sign pattern from ToMapPos.
+            float wx, wz;
+            switch (cfg.Rotation)
+            {
+                case 90:  wz = -mx / s; wx = -my / s; break;
+                case 180: wx = -mx / s; wz =  my / s; break;
+                case 270: wz =  mx / s; wx =  my / s; break;
+                default:  wx =  mx / s; wz = -my / s; break;
+            }
+            return new Vector3(wx, worldY, wz);
+        }
+
+        /// <summary>
         /// Computes world-space X/Z bounds for the visible map area (with margin).
         /// Use for fast world-space pre-culling before ToMapPos/ToScreenPos.
         /// </summary>

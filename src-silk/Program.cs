@@ -60,6 +60,11 @@ namespace eft_dma_radar.Silk
                 Config = SilkConfig.Load();
                 Log.WriteLine("[SilkProgram] Config loaded OK.");
 
+                // Seed + compile boss-guard rules (covers the no-config-file first-run path,
+                // where SilkConfig.Validate isn't called).
+                eft_dma_radar.Silk.Tarkov.GameWorld.Player.Plugins.GuardManager.EnsureSeeded(Config);
+                eft_dma_radar.Silk.Tarkov.GameWorld.Player.Plugins.GuardManager.Rebuild(Config);
+
                 // Wire debug logging from config or -debug command-line argument
                 Log.EnableDebugLogging = Config.DebugLogging ||
                     (Environment.GetCommandLineArgs()?.Contains("-debug", StringComparer.OrdinalIgnoreCase) ?? false);
@@ -92,10 +97,12 @@ namespace eft_dma_radar.Silk
                 Log.WriteLine("[SilkProgram] FeatureManager initialized.");
 
                 EftDataManager.ModuleInit();
+                BossDataManager.ModuleInit();
 
                 LootFilter.LoadFilterData();
 
                 MapManager.ModuleInit();
+                MapMarkerManager.Initialize();
                 Log.WriteLine("[SilkProgram] Map manager initialized, starting RadarWindow...");
 
                 if (Config.WebRadarEnabled)

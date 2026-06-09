@@ -3,6 +3,7 @@
 // See LICENSE in the repository root for details.
 
 using System.IO;
+using eft_dma_radar.Silk.Tarkov.GameWorld.Player.Plugins;
 
 namespace eft_dma_radar.Silk.Config
 {
@@ -555,6 +556,36 @@ namespace eft_dma_radar.Silk.Config
         /// <summary>Show switch markers on the radar (power switches, etc.).</summary>
         public bool ShowSwitches { get; set; } = true;
 
+        // ── Boss Guards ─────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Master toggle for AI boss-guard identification (promotes matching AI scavs to
+        /// Raider). When off, any player previously promoted is demoted back on next scan.
+        /// </summary>
+        public bool GuardIdentificationEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Per-map boss-guard identification rules (gear heuristics), keyed by map id.
+        /// Seeded from the built-in defaults on first run and editable via Settings →
+        /// Boss Guards. See <see cref="GuardManager"/>.
+        /// </summary>
+        [JsonPropertyName("guardRules")]
+        public Dictionary<string, GuardMapRule> GuardRules { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+        // ── Map Markers ─────────────────────────────────────────────────────────
+
+        /// <summary>Show user-placed map markers (local + shared) on the radar.</summary>
+        public bool ShowMapMarkers { get; set; } = true;
+
+        /// <summary>
+        /// User-placed map markers (local + shared/global). Persisted across raids and
+        /// keyed per map id. Shared markers are broadcast to web-radar buddies. Managed
+        /// at runtime through <see cref="UI.Maps.MapMarkerManager"/> (copy-on-write), which
+        /// re-assigns this list reference on every mutation.
+        /// </summary>
+        [JsonPropertyName("mapMarkers")]
+        public List<eft_dma_radar.Silk.UI.Maps.MapMarker> MapMarkers { get; set; } = [];
+
         // ── Doors ───────────────────────────────────────────────────────────────
 
         /// <summary>Master toggle for keyed door rendering on the radar.</summary>
@@ -867,6 +898,8 @@ namespace eft_dma_radar.Silk.Config
             Hotkeys ??= [];
             SelectedContainers ??= [];
             QuestBlacklist ??= [];
+            MapMarkers ??= [];
+            GuardRules ??= new(StringComparer.OrdinalIgnoreCase);
             MapCalibrationOverrides ??= new(StringComparer.OrdinalIgnoreCase);
 
             RightDockWidth = Math.Clamp(RightDockWidth, 260f, 720f);

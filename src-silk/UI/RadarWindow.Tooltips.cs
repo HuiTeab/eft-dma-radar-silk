@@ -69,6 +69,27 @@ namespace eft_dma_radar.Silk.UI
                 BuildBtrStopTooltipLines(hoveredBtrStop, localPlayer);
                 DrawTooltipBox(canvas, screenPos, _tooltipLines);
             }
+            else if (_mouseOverMarker is { } marker)
+            {
+                var screenPos = mapParams.ToScreenPos(MapParams.ToMapPos(marker.Position, mapConfig));
+                BuildMarkerTooltipLines(marker, localPlayer);
+                DrawTooltipBox(canvas, screenPos, _tooltipLines);
+            }
+        }
+
+        private static void BuildMarkerTooltipLines(MapMarker marker, Player localPlayer)
+        {
+            _tooltipLines.Clear();
+            if (!SKColor.TryParse(marker.Color, out var color))
+                color = new SKColor(255, 179, 0);
+            _markerTextPaint.Color = color;
+
+            _tooltipLines.Add((string.IsNullOrEmpty(marker.Label) ? "Marker" : marker.Label, _markerTextPaint));
+            _tooltipLines.Add((marker.Shared ? "Shared marker" : "Local marker", SKPaints.TooltipLabel));
+
+            int dist = (int)Vector3.Distance(localPlayer.Position, marker.Position);
+            _tooltipLines.Add(($"Distance: {dist}m", SKPaints.TooltipLabel));
+            _tooltipLines.Add(("Right-click to edit", SKPaints.TooltipLabel));
         }
 
         private static void BuildPlayerTooltipLines(Player player, Player localPlayer)

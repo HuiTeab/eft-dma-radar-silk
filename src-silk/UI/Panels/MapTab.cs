@@ -69,6 +69,46 @@ namespace eft_dma_radar.Silk.UI.Panels
 
             DrawMapSetupSection();
 
+            UIControls.Section("Map Markers");
+
+            bool showMarkers = Config.ShowMapMarkers;
+            if (UIControls.ToggleRow("Show Markers", ref showMarkers,
+                "Show user-placed markers on the radar. Right-click anywhere on the map to add one."))
+            {
+                Config.ShowMapMarkers = showMarkers;
+                Config.MarkDirty();
+            }
+
+            ImGui.TextDisabled("Right-click the map to add or edit a marker.");
+
+            var markerMapId = Memory.MapID;
+            if (!string.IsNullOrEmpty(markerMapId))
+            {
+                int localCount = 0, sharedCount = 0;
+                foreach (var m in MapMarkerManager.All)
+                {
+                    if (!m.MapId.Equals(markerMapId, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    if (m.Shared) sharedCount++; else localCount++;
+                }
+                ImGui.Text($"This map — Local: {localCount}   Shared: {sharedCount}");
+
+                ImGui.BeginDisabled(localCount == 0);
+                if (ImGui.Button("Clear Local##markers"))
+                    MapMarkerManager.ClearMap(markerMapId, sharedScope: false);
+                ImGui.EndDisabled();
+
+                ImGui.SameLine();
+                ImGui.BeginDisabled(sharedCount == 0);
+                if (ImGui.Button("Clear Shared##markers"))
+                    MapMarkerManager.ClearMap(markerMapId, sharedScope: true);
+                ImGui.EndDisabled();
+            }
+            else
+            {
+                ImGui.TextDisabled("Join a raid to manage markers for the current map.");
+            }
+
             UIControls.Section("Corpses");
 
             bool showCorpses = Config.ShowCorpses;

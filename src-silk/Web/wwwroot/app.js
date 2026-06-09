@@ -185,6 +185,11 @@ const defaults = {
   showBtr: true,
   showBtrRoute: false,
   showAirdrops: true,
+  showMarkers: true,
+
+  // Browser-local map markers (per map id) — never leave this device.
+  // Shape: { [mapId]: [{ id, label, color, worldX, worldY, worldZ }] }
+  localMarkers: {},
 
   // Buddy quest tracker (client-side, sourced from /api/questdata)
   showQuestItems: true,       // highlight items belonging to actively tracked quests
@@ -223,6 +228,7 @@ const defaults = {
     transit:     "#22d3ee",
     btr:         "#fbbf24",
     airdrop:     "#f97316",
+    marker:      "#FFB300",
   }
 };
 
@@ -236,6 +242,7 @@ function mergeState(parsed) {
     zoom: clamp(Number(parsed.zoom) || 1, ZOOM_MIN, ZOOM_MAX),
     selectedContainers: Array.isArray(parsed.selectedContainers) ? parsed.selectedContainers : [],
     trackedQuests: Array.isArray(parsed.trackedQuests) ? parsed.trackedQuests : [],
+    localMarkers: (parsed.localMarkers && typeof parsed.localMarkers === "object") ? parsed.localMarkers : {},
     lootWishlist: Array.isArray(parsed.lootWishlist) ? parsed.lootWishlist : [],
     lootBlacklist: Array.isArray(parsed.lootBlacklist) ? parsed.lootBlacklist : [],
   };
@@ -334,6 +341,7 @@ const inputs = {
   showBtr:         $("showBtr"),
   showBtrRoute:    $("showBtrRoute"),
   showAirdrops:    $("showAirdrops"),
+  showMarkers:     $("showMarkers"),
 
   // Quests
   showQuestItems:  $("showQuestItems"),
@@ -519,6 +527,7 @@ function bindAllInputs() {
   bind(inputs.showBtr, "showBtr");
   bind(inputs.showBtrRoute, "showBtrRoute");
   bind(inputs.showAirdrops, "showAirdrops");
+  bind(inputs.showMarkers, "showMarkers");
 
   bind(inputs.showQuestItems, "showQuestItems");
   bind(inputs.showAllQuestItems, "showAllQuestItems");
@@ -633,6 +642,7 @@ listen(inputs.showExfils, "showExfils");
 listen(inputs.showSwitches, "showSwitches");
 listen(inputs.showDoors, "showDoors");
 listen(inputs.showTransits, "showTransits");
+listen(inputs.showMarkers, "showMarkers");
 listen(inputs.showBtr, "showBtr");
 listen(inputs.showBtrRoute, "showBtrRoute");
 listen(inputs.showAirdrops, "showAirdrops");
@@ -1389,6 +1399,52 @@ function mapXYToScreen(mx, my, mapRect, cx, cy, rotRad) {
     py = cy + v.y;
   }
   return { px, py };
+}
+
+// Inverse of mapXYToScreen — screen pixels back to map-space coords.
+function screenToMapXY(clientX, clientY, view) {
+  let px = clientX, py = clientY;
+  if (state.rotateWithLocal) {
+    // Forward rotated by -rotRad around (cx,cy); undo with +rotRad.
+    const v = rotatePoint(px - view.cx, py - view.cy, view.rotRad);
+    px = view.cx + v.x;
+    py = view.cy + v.y;
+  }
+  return {
+    x: (px - view.mapRect.left) / state.zoom,
+    y: (py - view.mapRect.top) / state.zoom,
+  };
+}
+
+// Inverse of worldToMapUnzoomed — map-space coords back to Unity world X/Z.
+function mapXYToWorld(mx, my, map) {
+  if (isSatelliteActive(map)) {
+    const s = map.satellite;
+    const sc = s.scale * s.svgScale;
+    const cov = getSatelliteCoverage(s);
+    return {
+      x: (mx + cov.origX - s.originX * s.svgScale) / sc,
+      z: (s.originY * s.svgScale - cov.origY - my) / sc,
+    };
+  }
+  const ox = map.originX ?? map.x ?? 0;
+  const oy = map.originY ?? map.y ?? 0;
+  const sc = (map.scale ?? 1) * (map.svgScale ?? 1);
+  const svgSc = map.svgScale ?? 1;
+  return {
+    x: (mx - ox * svgSc) / sc,
+    z: (oy * svgSc - my) / sc,
+  };
+}
+
+// Converts a screen click to a Unity world position using the last rendered view.
+function canvasToWorld(clientX, clientY) {
+  if (!lastView || !lastView.map || !lastView.mapRect) return null;
+  const m = screenToMapXY(clientX, clientY, lastView);
+  const w = mapXYToWorld(m.x, m.y, lastView.map);
+  if (!Number.isFinite(w.x) || !Number.isFinite(w.z)) return null;
+  const wy = readWorldY(lastLocalPlayer) ?? 0;
+  return { x: w.x, y: wy, z: w.z, mapId: lastView.mapId || "" };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2649,6 +2705,12 @@ function updateHover() {
     const statusClass = e.status === 2 ? "ok" : e.status === 1 ? "warn" : "bad";
     html += `<div class="t-header"><span class="t-dot" style="background:${col}"></span><span class="t-name">${esc(e.name)}</span></div>`;
     html += `<div class="t-type">Exfil · <span style="color:var(--${statusClass})">${statusText}</span></div>`;
+  } else if (found.kind === "marker") {
+    const m = found.data;
+    const col = m.color || state.colors.marker;
+    const scopeText = m.scope === "shared" ? "Shared marker" : "Local marker";
+    html += `<div class="t-header"><span class="t-dot" style="background:${col}"></span><span class="t-name">${esc(m.label || "Marker")}</span></div>`;
+    html += `<div class="t-type">${scopeText}</div>`;
   }
 
   tooltipEl.innerHTML = html;
@@ -2819,11 +2881,265 @@ function pinchDist(t) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   MAP MARKERS — placement, edit popover, sync
+   ───────────────────────────────────────────────────────────────────────────
+   • Right-click the map (desktop) to add a marker, or tap the ◆ button then tap
+     the map (touch). A small popover collects a label + colour and a scope:
+       – Local  → stored in this browser only (localStorage).
+       – Shared → POSTed to the host and broadcast to every buddy.
+   • Click an existing marker (right-click / placement-tap) to edit or delete it.
+     Local markers are fully editable; shared markers can be deleted by anyone.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const MARKER_COLORS = [
+  "#FF5252", "#FFB300", "#FFEB3B", "#69F0AE",
+  "#40C4FF", "#7C4DFF", "#FFFFFF", "#FF80AB",
+];
+
+const markerBtn     = $("markerBtn");
+const markerPopover = $("markerPopover");
+const mpTitle       = $("mpTitle");
+const mpLabel       = $("mpLabel");
+const mpColors      = $("mpColors");
+const mpActions     = $("mpActions");
+
+let markerPlacing = false;
+let markerEditing = null;      // the hit data object being edited, or null for a new marker
+let markerDraftWorld = null;   // { x, y, z, mapId } for a pending new marker
+let markerDraftColor = MARKER_COLORS[1];
+let _markerDownPos = null;     // last left-button press pos, to distinguish click vs drag
+
+function setMarkerPlacing(on) {
+  markerPlacing = !!on;
+  if (markerBtn) markerBtn.classList.toggle("active", markerPlacing);
+  canvas.style.cursor = markerPlacing ? "crosshair" : "";
+}
+
+function findMarkerHit(x, y) {
+  let best = null, bestDist = Infinity;
+  for (const h of hitList) {
+    if (h.kind !== "marker") continue;
+    const dx = x - h.px, dy = y - h.py;
+    const d = dx * dx + dy * dy;
+    if (d < h.r * h.r && d < bestDist) { bestDist = d; best = h; }
+  }
+  return best;
+}
+
+function showMarkerPopover(clientX, clientY) {
+  if (!markerPopover) return;
+  markerPopover.hidden = false;
+  // Clamp into the viewport now that it has a measured size.
+  const w = markerPopover.offsetWidth, h = markerPopover.offsetHeight;
+  let left = clientX + 8, top = clientY + 8;
+  if (left + w > window.innerWidth - 8) left = clientX - w - 8;
+  if (top + h > window.innerHeight - 8) top = window.innerHeight - h - 8;
+  markerPopover.style.left = Math.max(8, left) + "px";
+  markerPopover.style.top = Math.max(8, top) + "px";
+  setTimeout(() => { try { mpLabel && mpLabel.focus(); } catch {} }, 0);
+}
+
+function closeMarkerPopover() {
+  if (markerPopover) markerPopover.hidden = true;
+  markerEditing = null;
+  markerDraftWorld = null;
+}
+
+function buildColorSwatches(selected) {
+  if (!mpColors) return;
+  mpColors.innerHTML = "";
+  for (const hex of MARKER_COLORS) {
+    const b = document.createElement("button");
+    b.className = "mp-swatch" + (hex.toLowerCase() === (selected || "").toLowerCase() ? " sel" : "");
+    b.style.background = hex;
+    b.title = hex;
+    b.addEventListener("click", () => {
+      markerDraftColor = hex;
+      buildColorSwatches(hex);
+    });
+    mpColors.appendChild(b);
+  }
+}
+
+function mpButton(label, cls, onClick) {
+  const b = document.createElement("button");
+  b.textContent = label;
+  b.className = "mp-btn " + (cls || "");
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function buildActions(mode) {
+  if (!mpActions) return;
+  mpActions.innerHTML = "";
+  const labelVal = () => (mpLabel ? mpLabel.value.trim().slice(0, 64) : "");
+
+  if (mode === "new") {
+    mpActions.appendChild(mpButton("Local", "primary", () => {
+      addLocalMarker(markerDraftWorld, labelVal(), markerDraftColor);
+      closeMarkerPopover();
+    }));
+    mpActions.appendChild(mpButton("Shared", "primary", () => {
+      addSharedMarker(markerDraftWorld, labelVal(), markerDraftColor);
+      closeMarkerPopover();
+    }));
+  } else if (mode === "editLocal") {
+    mpActions.appendChild(mpButton("Save", "primary", () => {
+      updateLocalMarker(markerEditing, labelVal(), markerDraftColor);
+      closeMarkerPopover();
+    }));
+    mpActions.appendChild(mpButton("Delete", "danger", () => {
+      removeLocalMarker(markerEditing);
+      closeMarkerPopover();
+    }));
+  } else if (mode === "editShared") {
+    mpActions.appendChild(mpButton("Delete", "danger", () => {
+      deleteSharedMarker(markerEditing.id);
+      closeMarkerPopover();
+    }));
+  }
+  mpActions.appendChild(mpButton("Cancel", "", () => closeMarkerPopover()));
+}
+
+function openMarkerPopoverNew(clientX, clientY, world) {
+  if (!markerPopover || !world) return;
+  markerEditing = null;
+  markerDraftWorld = world;
+  markerDraftColor = state.colors.marker || MARKER_COLORS[1];
+  if (mpTitle) mpTitle.textContent = "New marker";
+  if (mpLabel) mpLabel.value = "";
+  buildColorSwatches(markerDraftColor);
+  buildActions("new");
+  showMarkerPopover(clientX, clientY);
+}
+
+function openMarkerPopoverEdit(clientX, clientY, m) {
+  if (!markerPopover || !m) return;
+  markerEditing = m;
+  markerDraftColor = m.color || MARKER_COLORS[1];
+  if (mpTitle) mpTitle.textContent = m.scope === "shared" ? "Shared marker" : "Local marker";
+  if (mpLabel) mpLabel.value = m.label || "";
+  buildColorSwatches(markerDraftColor);
+  buildActions(m.scope === "shared" ? "editShared" : "editLocal");
+  showMarkerPopover(clientX, clientY);
+}
+
+// ── Local (browser-only) marker CRUD ──
+function localMarkerArray(mapId, create) {
+  if (!mapId) return null;
+  if (!state.localMarkers || typeof state.localMarkers !== "object") state.localMarkers = {};
+  if (!Array.isArray(state.localMarkers[mapId])) {
+    if (!create) return null;
+    state.localMarkers[mapId] = [];
+  }
+  return state.localMarkers[mapId];
+}
+
+function addLocalMarker(world, label, color) {
+  if (!world || !world.mapId) return;
+  const arr = localMarkerArray(world.mapId, true);
+  arr.push({
+    id: "L" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    label: label || "",
+    color: color || state.colors.marker,
+    worldX: world.x, worldY: world.y, worldZ: world.z,
+  });
+  saveSettings();
+}
+
+function updateLocalMarker(m, label, color) {
+  const mapId = lastView ? lastView.mapId : "";
+  const arr = localMarkerArray(mapId, false);
+  if (!arr) return;
+  const t = arr.find(x => x.id === m.id);
+  if (!t) return;
+  t.label = label || "";
+  t.color = color || t.color;
+  saveSettings();
+}
+
+function removeLocalMarker(m) {
+  const mapId = lastView ? lastView.mapId : "";
+  const arr = localMarkerArray(mapId, false);
+  if (!arr) return;
+  const i = arr.findIndex(x => x.id === m.id);
+  if (i >= 0) { arr.splice(i, 1); saveSettings(); }
+}
+
+// ── Shared markers (host-synced) ──
+async function addSharedMarker(world, label, color) {
+  if (!world || !world.mapId) return;
+  try {
+    await fetch("/api/markers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mapId: world.mapId, x: world.x, y: world.y, z: world.z,
+        label: label || "", color: color || state.colors.marker,
+      }),
+    });
+  } catch { /* will retry on next user action */ }
+}
+
+async function deleteSharedMarker(id) {
+  if (!id) return;
+  try {
+    await fetch("/api/markers/" + encodeURIComponent(id), { method: "DELETE" });
+  } catch { /* ignore */ }
+}
+
+// ── Interaction wiring ──
+function handleMarkerPoint(clientX, clientY) {
+  const hit = findMarkerHit(clientX, clientY);
+  if (hit) {
+    openMarkerPopoverEdit(clientX, clientY, hit.data);
+    return true;
+  }
+  const world = canvasToWorld(clientX, clientY);
+  if (world) {
+    openMarkerPopoverNew(clientX, clientY, world);
+    return true;
+  }
+  return false;
+}
+
+if (markerBtn) {
+  markerBtn.addEventListener("click", () => setMarkerPlacing(!markerPlacing));
+}
+
+// Desktop: right-click the map to add/edit a marker (parity with the host radar).
+canvas.addEventListener("contextmenu", e => {
+  e.preventDefault();
+  handleMarkerPoint(e.clientX, e.clientY);
+});
+
+// Record left-button press so a click can be told apart from a pan-drag.
+canvas.addEventListener("mousedown", e => {
+  if (e.button === 0) _markerDownPos = { x: e.clientX, y: e.clientY };
+});
+
+// Placement-mode click (works for mouse + touch).
+canvas.addEventListener("click", e => {
+  if (!markerPlacing) return;
+  if (_markerDownPos && Math.hypot(e.clientX - _markerDownPos.x, e.clientY - _markerDownPos.y) > 5)
+    return; // was a drag, not a tap
+  if (handleMarkerPoint(e.clientX, e.clientY))
+    setMarkerPlacing(false);
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && markerPopover && !markerPopover.hidden) {
+    closeMarkerPopover();
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
    RENDER LOOP
    ═══════════════════════════════════════════════════════════════════════════ */
 let lastRotRad = 0;
 let lastLocalPlayer = null;
 let lastFocusPlayer = null;
+// Last rendered view transform — used to map screen clicks back to world coords.
+let lastView = null;
 
 function frame() {
   requestAnimationFrame(frame);
@@ -2898,6 +3214,9 @@ function frame() {
   if (map) {
     const mapRect = getMapScreenRect(map, cx, cy, state.zoom, anchor);
     if (mapRect) {
+      // Cache the view transform so screen clicks can be projected back to world.
+      lastView = { map, cx, cy, rotRad: lastRotRad, mapRect, mapId: radarData.mapID || "" };
+
       if (state.showGroups) drawGroupConnectors(players, map, cx, cy, lastRotRad, mapRect);
       if (state.showExfils) drawExfils(radarData.exfils, map, cx, cy, lastRotRad, mapRect, hitList);
       if (state.showCorpses) drawCorpses(radarData.corpses, map, cx, cy, lastRotRad, mapRect, hitList);
@@ -2909,6 +3228,7 @@ function frame() {
       if (state.showBtr && radarData.btr) drawBtr(radarData.btr, map, cx, cy, lastRotRad, mapRect, hitList);
       if (state.showAirdrops) drawAirdrops(radarData.airdrops, map, cx, cy, lastRotRad, mapRect, hitList);
       if (state.showLoot) drawLoot(radarData.loot, map, cx, cy, lastRotRad, mapRect, readWorldY(local), hitList, local);
+      if (state.showMarkers) drawMarkers(radarData.markers, map, cx, cy, lastRotRad, mapRect, hitList, radarData.mapID || "");
       if (state.showPlayers) drawPlayers(players, map, cx, cy, lastRotRad, mapRect, readWorldY(local), hitList, focusPlayer);
     }
   }
@@ -3254,6 +3574,62 @@ function drawQuestZones(map, cx, cy, rotRad, mapRect, mapId) {
       ctx.restore();
     }
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAP MARKERS
+   ═══════════════════════════════════════════════════════════════════════════ */
+// Draws shared markers (from the server) + browser-local markers for this map.
+function drawMarkers(serverMarkers, map, cx, cy, rotRad, mapRect, hitList, mapId) {
+  const drawOne = (m, scope) => {
+    if (!m || !Number.isFinite(m.worldX) || !Number.isFinite(m.worldZ)) return;
+    const pm = worldToMapUnzoomed(m.worldX, m.worldZ, map);
+    const s = mapXYToScreen(pm.x, pm.y, mapRect, cx, cy, rotRad);
+    const col = m.color || state.colors.marker;
+
+    ctx.save();
+    // Shared markers get an outer ring so they read differently from local ones.
+    if (scope === "shared") {
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = 0.7;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(s.px, s.py, 8.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    // Diamond body
+    const d = 5.5;
+    ctx.beginPath();
+    ctx.moveTo(s.px, s.py - d);
+    ctx.lineTo(s.px + d, s.py);
+    ctx.lineTo(s.px, s.py + d);
+    ctx.lineTo(s.px - d, s.py);
+    ctx.closePath();
+    ctx.fillStyle = col;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.7)";
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    if (m.label) {
+      ctx.font = "11px system-ui, sans-serif";
+      ctx.fillStyle = "rgba(0,0,0,0.75)";
+      ctx.fillText(m.label, s.px + 10, s.py + 5);
+      ctx.fillStyle = col;
+      ctx.fillText(m.label, s.px + 9, s.py + 4);
+    }
+    ctx.restore();
+
+    hitList.push({ kind: "marker", px: s.px, py: s.py, r: 11, data: { ...m, scope } });
+  };
+
+  if (Array.isArray(serverMarkers))
+    for (const m of serverMarkers) drawOne(m, "shared");
+
+  const locals = (mapId && state.localMarkers) ? state.localMarkers[mapId] : null;
+  if (Array.isArray(locals))
+    for (const m of locals) drawOne(m, "local");
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

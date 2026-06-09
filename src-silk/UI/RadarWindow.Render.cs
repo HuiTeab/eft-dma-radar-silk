@@ -456,6 +456,9 @@ namespace eft_dma_radar.Silk.UI
                 }
             }
 
+            // User-placed map markers (local + shared) — under players so dots stay on top
+            DrawMapMarkers(canvas, mapParams, mapCfg, worldBounds);
+
             // Group connectors
             if (Config.ConnectGroups && normalPlayers is not null)
                 DrawGroupConnectors(canvas, normalPlayers, map, mapParams);

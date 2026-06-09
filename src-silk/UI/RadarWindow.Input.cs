@@ -25,6 +25,13 @@ namespace eft_dma_radar.Silk.UI
             float scenePx = pos.X / sScale;
             float scenePy = pos.Y / sScale;
 
+            // Right-click: place / edit a map marker (never starts a pan).
+            if (button == MouseButton.Right)
+            {
+                HandleMarkerRightClick(pos);
+                return;
+            }
+
             // Killfeed overlay drag takes priority over map pan
             if (button == MouseButton.Left && Config.ShowKillFeed
                 && KillfeedBounds.Width > 0 && KillfeedBounds.Contains(scenePx, scenePy))
@@ -126,6 +133,17 @@ namespace eft_dma_radar.Silk.UI
             // Check players (highest priority)
             if (TryHitTestPlayers(mp, worldBounds, mousePos, hitRadius))
                 return;
+
+            // Check user-placed markers (scene-space — they render under the UIScale transform)
+            if (Config.ShowMapMarkers)
+            {
+                var scene = new Vector2(mousePos.X / UIScale, mousePos.Y / UIScale);
+                if (TryFindMarkerNear(mp, scene, MarkerHitRadius, out var hoverMarker) && hoverMarker is not null)
+                {
+                    SetMouseover(marker: hoverMarker);
+                    return;
+                }
+            }
 
             // Check loot + corpses (only when loot is visible)
             if (!Config.BattleMode && Config.ShowLoot)
@@ -289,6 +307,7 @@ namespace eft_dma_radar.Silk.UI
             _mouseOverTransit = null;
             _mouseOverBtr = null;
             _mouseOverBtrStop = null;
+            _mouseOverMarker = null;
             MouseoverGroup = null;
         }
 
@@ -300,6 +319,7 @@ namespace eft_dma_radar.Silk.UI
             TransitPoint? transit = null,
             BtrTracker? btr = null,
             BtrRouteStop? btrStop = null,
+            MapMarker? marker = null,
             int? group = null)
         {
             _mouseOverPlayer = player;
@@ -309,6 +329,7 @@ namespace eft_dma_radar.Silk.UI
             _mouseOverTransit = transit;
             _mouseOverBtr = btr;
             _mouseOverBtrStop = btrStop;
+            _mouseOverMarker = marker;
             MouseoverGroup = group;
         }
 
