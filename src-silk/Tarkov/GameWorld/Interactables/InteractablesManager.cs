@@ -11,7 +11,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Interactables
     /// <summary>
     /// Discovers and tracks interactive doors in the GameWorld.
     /// Doors are discovered once at startup, then their state is refreshed periodically.
-    /// Uses batched scatter reads for efficient DMA access.
+    /// Uses batched scatter reads for efficient DMA access
     /// </summary>
     internal sealed class InteractablesManager
     {
