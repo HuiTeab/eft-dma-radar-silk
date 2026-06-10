@@ -74,10 +74,16 @@ namespace eft_dma_radar.Silk.Misc.Data.TarkovMarket
                   tasks {
                     id
                     name
+                    normalizedName
                     trader {
                       name
                     }
                     kappaRequired
+                    lightkeeperRequired
+                    minPlayerLevel
+                    experience
+                    wikiLink
+                    factionName
                     map {
                       id
                       normalizedName

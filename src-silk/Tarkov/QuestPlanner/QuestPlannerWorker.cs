@@ -35,6 +35,12 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
         public static QuestPlannerState State { get; private set; } = QuestPlannerState.Disconnected;
         public static bool IsStale { get; private set; }
 
+        /// <summary>
+        /// Transient free-text search applied by the planner panel. Not persisted —
+        /// the panel sets it and calls <see cref="ForceRecompute"/>. Reference assignment is atomic.
+        /// </summary>
+        public static string SearchText { get; set; } = string.Empty;
+
         // ── Internal state ───────────────────────────────────────────────────
         private static ulong _lastFingerprint;
         private static volatile bool _forceRecompute = true;
@@ -179,9 +185,15 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
                 return;
             }
 
+            var cfg = SilkProgram.Config;
             var settings = new QuestPlannerSettings
             {
-                KappaFilter = SilkProgram.Config.QuestKappaFilter
+                KappaFilter = cfg.QuestKappaFilter,
+                LightkeeperFilter = cfg.QuestLightkeeperFilter,
+                TraderFilter = string.IsNullOrWhiteSpace(cfg.QuestPlannerTraderFilter) ? null : cfg.QuestPlannerTraderFilter,
+                MaxPlayerLevel = cfg.QuestPlannerMaxLevel,
+                SearchText = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText,
+                Sort = (QuestPlannerSort)cfg.QuestPlannerSortMode,
             };
 
             var summary = QuestPlanBuilder.GetSummary(quests, EftDataManager.TaskData, settings);

@@ -34,23 +34,14 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
             FrozenDictionary<string, TaskElement> taskData,
             QuestPlannerSettings settings)
         {
-            var startTraders = CollectDistinctTraderNames(quests.AvailableForStart, taskData);
-            var finishTraders = CollectDistinctTraderNames(quests.AvailableForFinish, taskData);
+            var startTraders = CollectDistinctTraderNames(quests.AvailableForStart, taskData, settings.TraderFilter);
+            var finishTraders = CollectDistinctTraderNames(quests.AvailableForFinish, taskData, settings.TraderFilter);
 
             // 1. Completable objectives (Started quests only, not-yet-completed conditions).
             var completable = GetCompletableObjectives(quests.Started, taskData);
 
-            // 1a. Kappa filter.
-            if (settings.KappaFilter)
-            {
-                var filtered = new List<(TaskElement Task, TaskElement.ObjectiveElement Objective)>(completable.Count);
-                for (int i = 0; i < completable.Count; i++)
-                {
-                    if (completable[i].Task.KappaRequired)
-                        filtered.Add(completable[i]);
-                }
-                completable = filtered;
-            }
+            // 1a. Apply planner filters (Kappa/Lightkeeper progression, trader, level gate, search).
+            completable = ApplyFilters(completable, settings);
 
             // 2. Map scoring (counts + finishable quest attribution).
             var scores = ScoreMaps(completable);
@@ -69,12 +60,15 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
             // 6. Dependency promotion via Kahn's topological sort.
             var promoted = ApplyDependencyPromotion(ranked, reverseReqs);
 
+            // 6a. Per-task unlock chain (taskId → names of quests it unlocks), reusing the index.
+            var unlocksByTask = BuildUnlocksByTask(reverseReqs);
+
             // 7. Per-map plans.
             var mapPlans = new List<MapPlan>(promoted.Count);
             for (int i = 0; i < promoted.Count; i++)
             {
                 var score = promoted[i];
-                var questPlans = BuildQuestsForMap(score.MapId, completable, quests.Started);
+                var questPlans = BuildQuestsForMap(score.MapId, completable, quests.Started, unlocksByTask);
                 var unlockedQuests = GetUnlockedQuestsForMap(score.QuestIds, taskData);
                 var filteredBring = BuildFilteredBringList(questPlans);
                 mapPlans.Add(new MapPlan
@@ -84,15 +78,19 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
                     IsRecommended = i == 0,
                     CompletableObjectiveCount = score.ObjectiveCount,
                     ActiveQuestCount = score.QuestIds.Count,
+                    UnlockCount = score.UnlockCount,
                     Quests = questPlans,
                     UnlockedQuests = unlockedQuests,
                     FilteredBringList = filteredBring
                 });
             }
 
-            var allMapsQuests = BuildAllMapsQuests(completable, quests.Started);
-            var firItems = BuildFirItems(quests.Started, taskData);
-            var handOverItems = BuildHandOverItems(quests.Started, taskData);
+            // 7a. Optional display re-ordering (keeps the ★ on the dependency-recommended map).
+            ApplySort(mapPlans, settings.Sort);
+
+            var allMapsQuests = BuildAllMapsQuests(completable, quests.Started, unlocksByTask);
+            var firItems = BuildFirItems(quests.Started, taskData, settings);
+            var handOverItems = BuildHandOverItems(quests.Started, taskData, settings);
 
             return new QuestSummary
             {
@@ -112,18 +110,121 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
 
         private static List<string> CollectDistinctTraderNames(
             List<QuestData> quests,
-            FrozenDictionary<string, TaskElement> taskData)
+            FrozenDictionary<string, TaskElement> taskData,
+            string? traderFilter = null)
         {
             if (quests.Count == 0) return [];
+            bool hasFilter = !string.IsNullOrEmpty(traderFilter);
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < quests.Count; i++)
             {
                 if (taskData.TryGetValue(quests[i].Id, out var task) && task.Trader?.Name is { Length: > 0 } name)
+                {
+                    if (hasFilter && !string.Equals(name, traderFilter, StringComparison.OrdinalIgnoreCase))
+                        continue;
                     set.Add(name);
+                }
             }
             var list = new List<string>(set);
             list.Sort(StringComparer.OrdinalIgnoreCase);
             return list;
+        }
+
+        /// <summary>
+        /// Task-level predicate shared by all sections: Kappa/Lightkeeper progression toggles
+        /// (OR-combined when both enabled), trader filter, and the minimum-level gate.
+        /// </summary>
+        private static bool PassesTaskFilter(TaskElement task, QuestPlannerSettings settings)
+        {
+            if (settings.KappaFilter || settings.LightkeeperFilter)
+            {
+                bool keep = (settings.KappaFilter && task.KappaRequired)
+                         || (settings.LightkeeperFilter && task.LightkeeperRequired);
+                if (!keep) return false;
+            }
+            if (!string.IsNullOrEmpty(settings.TraderFilter)
+                && !string.Equals(task.Trader?.Name, settings.TraderFilter, StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (settings.MaxPlayerLevel > 0 && task.MinPlayerLevel > settings.MaxPlayerLevel)
+                return false;
+            return true;
+        }
+
+        /// <summary>
+        /// Filters completable (task, objective) pairs by the planner's display filters.
+        /// Search matches either the quest name or the objective description.
+        /// </summary>
+        private static List<(TaskElement Task, TaskElement.ObjectiveElement Objective)> ApplyFilters(
+            List<(TaskElement Task, TaskElement.ObjectiveElement Objective)> completable,
+            QuestPlannerSettings settings)
+        {
+            bool anyTaskFilter = settings.KappaFilter || settings.LightkeeperFilter
+                || !string.IsNullOrEmpty(settings.TraderFilter) || settings.MaxPlayerLevel > 0;
+            string? search = string.IsNullOrWhiteSpace(settings.SearchText) ? null : settings.SearchText.Trim();
+            if (!anyTaskFilter && search is null)
+                return completable;
+
+            var filtered = new List<(TaskElement, TaskElement.ObjectiveElement)>(completable.Count);
+            for (int i = 0; i < completable.Count; i++)
+            {
+                var (task, obj) = completable[i];
+                if (anyTaskFilter && !PassesTaskFilter(task, settings)) continue;
+                if (search is not null
+                    && task.Name.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0
+                    && (obj.Description?.IndexOf(search, StringComparison.OrdinalIgnoreCase) ?? -1) < 0)
+                    continue;
+                filtered.Add((task, obj));
+            }
+            return filtered;
+        }
+
+        /// <summary>
+        /// Builds requiredTaskId → distinct names of quests it unlocks, from the reverse-requirement index.
+        /// </summary>
+        private static Dictionary<string, List<string>> BuildUnlocksByTask(
+            Dictionary<string, List<Dependent>> reverseReqs)
+        {
+            var map = new Dictionary<string, List<string>>(reverseReqs.Count, StringComparer.Ordinal);
+            foreach (var (reqId, deps) in reverseReqs)
+            {
+                if (deps.Count == 0) continue;
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                List<string>? names = null;
+                for (int i = 0; i < deps.Count; i++)
+                {
+                    var t = deps[i].Task;
+                    if (!seen.Add(t.Id)) continue;
+                    (names ??= new List<string>()).Add(t.Name);
+                }
+                if (names is not null)
+                {
+                    names.Sort(StringComparer.OrdinalIgnoreCase);
+                    map[reqId] = names;
+                }
+            }
+            return map;
+        }
+
+        /// <summary>Re-orders the map list for display without disturbing the recommended ★.</summary>
+        private static void ApplySort(List<MapPlan> mapPlans, QuestPlannerSort sort)
+        {
+            switch (sort)
+            {
+                case QuestPlannerSort.Objectives:
+                    mapPlans.Sort(static (a, b) =>
+                    {
+                        int cmp = b.CompletableObjectiveCount.CompareTo(a.CompletableObjectiveCount);
+                        return cmp != 0 ? cmp : b.ActiveQuestCount.CompareTo(a.ActiveQuestCount);
+                    });
+                    break;
+                case QuestPlannerSort.Unlocks:
+                    mapPlans.Sort(static (a, b) =>
+                    {
+                        int cmp = b.UnlockCount.CompareTo(a.UnlockCount);
+                        return cmp != 0 ? cmp : b.CompletableObjectiveCount.CompareTo(a.CompletableObjectiveCount);
+                    });
+                    break;
+            }
         }
 
         private static HashSet<string> BuildActiveQuestIdSet(List<QuestData> quests)
@@ -425,7 +526,8 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
         private static List<QuestPlan> BuildQuestsForMap(
             string mapId,
             List<(TaskElement Task, TaskElement.ObjectiveElement Objective)> completable,
-            List<QuestData> quests)
+            List<QuestData> quests,
+            Dictionary<string, List<string>> unlocksByTask)
         {
             var completedByQuest = new Dictionary<string, HashSet<string>>(quests.Count, StringComparer.Ordinal);
             var countersByQuest = new Dictionary<string, IReadOnlyDictionary<string, int>>(quests.Count, StringComparer.Ordinal);
@@ -455,10 +557,11 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
             var result = new List<QuestPlan>(objectivesByTask.Count);
             foreach (var (taskId, objectives) in objectivesByTask)
             {
-                var taskName = taskRef.TryGetValue(taskId, out var t) ? t.Name : taskId;
+                taskRef.TryGetValue(taskId, out var task);
+                var taskName = task?.Name ?? taskId;
                 var bring = BuildBringListForQuest(objectives, taskName);
 
-                var allObjs = (taskRef.TryGetValue(taskId, out var tt) ? tt.Objectives : null) ?? [];
+                var allObjs = task?.Objectives ?? [];
                 var findLookup = BuildFindItemLookup(allObjs);
 
                 var completedSet = completedByQuest.GetValueOrDefault(taskId) ?? [];
@@ -482,9 +585,16 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
 
                 result.Add(new QuestPlan
                 {
+                    TaskId = taskId,
                     QuestName = taskName,
                     Objectives = filtered,
-                    BringItems = bring
+                    BringItems = bring,
+                    TraderName = task?.Trader?.Name ?? string.Empty,
+                    KappaRequired = task?.KappaRequired ?? false,
+                    LightkeeperRequired = task?.LightkeeperRequired ?? false,
+                    MinPlayerLevel = task?.MinPlayerLevel ?? 0,
+                    WikiLink = task?.WikiLink ?? string.Empty,
+                    Unlocks = unlocksByTask.TryGetValue(taskId, out var u) ? u : []
                 });
             }
             return result;
@@ -647,7 +757,8 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
 
         private static List<QuestPlan> BuildAllMapsQuests(
             List<(TaskElement Task, TaskElement.ObjectiveElement Objective)> completable,
-            List<QuestData> quests)
+            List<QuestData> quests,
+            Dictionary<string, List<string>> unlocksByTask)
         {
             var completedByQuest = new Dictionary<string, HashSet<string>>(quests.Count, StringComparer.Ordinal);
             var countersByQuest = new Dictionary<string, IReadOnlyDictionary<string, int>>(quests.Count, StringComparer.Ordinal);
@@ -677,8 +788,9 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
             var result = new List<QuestPlan>(objectivesByTask.Count);
             foreach (var (taskId, objectives) in objectivesByTask)
             {
-                var taskName = taskRef.TryGetValue(taskId, out var t) ? t.Name : taskId;
-                var allObjs = (taskRef.TryGetValue(taskId, out var tt) ? tt.Objectives : null) ?? [];
+                taskRef.TryGetValue(taskId, out var task);
+                var taskName = task?.Name ?? taskId;
+                var allObjs = task?.Objectives ?? [];
                 var findLookup = BuildFindItemLookup(allObjs);
 
                 // FIR pair objectives (they go to FirItems category instead).
@@ -722,9 +834,16 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
 
                 result.Add(new QuestPlan
                 {
+                    TaskId = taskId,
                     QuestName = taskName,
                     Objectives = filtered,
-                    BringItems = BuildBringListForQuest(objectives, taskName)
+                    BringItems = BuildBringListForQuest(objectives, taskName),
+                    TraderName = task?.Trader?.Name ?? string.Empty,
+                    KappaRequired = task?.KappaRequired ?? false,
+                    LightkeeperRequired = task?.LightkeeperRequired ?? false,
+                    MinPlayerLevel = task?.MinPlayerLevel ?? 0,
+                    WikiLink = task?.WikiLink ?? string.Empty,
+                    Unlocks = unlocksByTask.TryGetValue(taskId, out var u) ? u : []
                 });
             }
             return result;
@@ -732,13 +851,15 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
 
         private static List<FirItemInfo> BuildFirItems(
             List<QuestData> quests,
-            FrozenDictionary<string, TaskElement> taskData)
+            FrozenDictionary<string, TaskElement> taskData,
+            QuestPlannerSettings settings)
         {
             var result = new List<FirItemInfo>();
             for (int q = 0; q < quests.Count; q++)
             {
                 var quest = quests[q];
                 if (!taskData.TryGetValue(quest.Id, out var task)) continue;
+                if (!PassesTaskFilter(task, settings)) continue;
                 var objs = task.Objectives;
                 if (objs is null || objs.Count == 0) continue;
 
@@ -775,13 +896,15 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner
 
         private static List<HandOverItemInfo> BuildHandOverItems(
             List<QuestData> quests,
-            FrozenDictionary<string, TaskElement> taskData)
+            FrozenDictionary<string, TaskElement> taskData,
+            QuestPlannerSettings settings)
         {
             var result = new List<HandOverItemInfo>();
             for (int q = 0; q < quests.Count; q++)
             {
                 var quest = quests[q];
                 if (!taskData.TryGetValue(quest.Id, out var task)) continue;
+                if (!PassesTaskFilter(task, settings)) continue;
                 var objs = task.Objectives;
                 if (objs is null || objs.Count == 0) continue;
 

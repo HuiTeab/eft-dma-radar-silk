@@ -3,6 +3,7 @@
 // See LICENSE in the repository root for details.
 
 using System.Collections.Frozen;
+using System.IO;
 using eft_dma_radar.Silk.DMA;
 using eft_dma_radar.Silk.DMA.ScatterAPI;
 using eft_dma_radar.Silk.Misc;
@@ -138,6 +139,31 @@ namespace eft_dma_radar.Silk.Tarkov.Hideout
     {
         /// <summary>True when the area has no further upgrades available.</summary>
         public bool IsMaxLevel => Status == EAreaStatus.NoFutureUpgrades;
+
+        /// <summary>
+        /// True when this area cannot be upgraded yet because of an unfulfilled
+        /// non-item prerequisite (area dependency, trader unlock/loyalty, skill, or quest).
+        /// When false the upgrade is actionable right now — the only thing left is
+        /// collecting the required items/resources.
+        /// </summary>
+        public bool IsBlocked
+        {
+            get
+            {
+                for (int r = 0; r < NextLevelRequirements.Count; r++)
+                {
+                    var req = NextLevelRequirements[r];
+                    if (req.Fulfilled) continue;
+                    if (req.Type is ERequirementType.Area
+                                 or ERequirementType.TraderLoyalty
+                                 or ERequirementType.TraderUnlock
+                                 or ERequirementType.Skill
+                                 or ERequirementType.QuestComplete)
+                        return true;
+                }
+                return false;
+            }
+        }
     }
 
     /// <summary>
@@ -226,13 +252,39 @@ namespace eft_dma_radar.Silk.Tarkov.Hideout
         /// </summary>
         public FrozenSet<string> NeededFiRItemIds { get; private set; } = FrozenSet<string>.Empty;
 
+        /// <summary>
+        /// Subset of <see cref="NeededItemIds"/> needed for upgrades that are actionable
+        /// right now — i.e. areas that are not <see cref="HideoutAreaInfo.IsBlocked"/> by a
+        /// non-item prerequisite. Excludes items only needed for still-locked future upgrades.
+        /// Rebuilt after every <see cref="ReadAreas"/> call.
+        /// </summary>
+        public FrozenSet<string> CurrentNeededItemIds { get; private set; } = FrozenSet<string>.Empty;
+
+        /// <summary>
+        /// Subset of <see cref="CurrentNeededItemIds"/> whose items must be Found-in-Raid.
+        /// Rebuilt after every <see cref="ReadAreas"/> call.
+        /// </summary>
+        public FrozenSet<string> CurrentNeededFiRItemIds { get; private set; } = FrozenSet<string>.Empty;
+
         // ── Persistent planner cache (survives GOM loss during raid) ──────────
         // Populated whenever ReadAreas succeeds; never cleared automatically so
         // the loot-filter can query it throughout a raid/lobby session.
+        // Also mirrored to disk (see Save/LoadPersistentCache) so the loot-filter
+        // highlighting works right after an app restart, before revisiting the hideout.
         private IReadOnlyList<HideoutAreaInfo>? _persistentAreas;
         private FrozenSet<string>? _persistentNeededIds;
         private FrozenDictionary<string, int>? _persistentNeededCounts;
         private FrozenSet<string>? _persistentFiRIds;
+        private FrozenSet<string>? _persistentCurrentNeededIds;
+        private FrozenSet<string>? _persistentCurrentFiRIds;
+
+        // ── On-disk cache (survives radar app restarts) ──────────────────────
+        private const int CacheVersion = 1;
+        private static readonly string _cacheFilePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "eft-dma-radar-silk",
+            "hideout_cache.json");
+        private static readonly JsonSerializerOptions _cacheJsonOpts = new() { WriteIndented = true };
 
         /// <summary>
         /// Last successfully read area list. Remains populated even while the player is in raid.
@@ -248,6 +300,12 @@ namespace eft_dma_radar.Silk.Tarkov.Hideout
 
         /// <summary>Last known FiR-required item IDs. Survives GOM loss.</summary>
         public FrozenSet<string> PersistentNeededFiRItemIds => _persistentFiRIds ?? FrozenSet<string>.Empty;
+
+        /// <summary>Last known item IDs needed for upgrades actionable right now. Survives GOM loss.</summary>
+        public FrozenSet<string> PersistentCurrentNeededItemIds => _persistentCurrentNeededIds ?? FrozenSet<string>.Empty;
+
+        /// <summary>Last known FiR-required IDs among <see cref="PersistentCurrentNeededItemIds"/>. Survives GOM loss.</summary>
+        public FrozenSet<string> PersistentCurrentNeededFiRItemIds => _persistentCurrentFiRIds ?? FrozenSet<string>.Empty;
 
         /// <summary>Sum of the best sell price (trader vs flea) for every item in the stash.</summary>
         public long TotalBestValue { get; private set; }
@@ -885,11 +943,17 @@ namespace eft_dma_radar.Silk.Tarkov.Hideout
 
                 Areas = areas;
 
-                // Rebuild the set of item template IDs still needed for upgrades
+                // Rebuild the set of item template IDs still needed for upgrades.
+                // The "current" builders only collect items from areas that are actionable
+                // right now (not blocked by a non-item prerequisite), so the loot filter can
+                // optionally ignore items only needed for still-locked future upgrades.
                 var neededBuilder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var firBuilder = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var currentBuilder = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var currentFirBuilder = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 for (int a = 0; a < areas.Count; a++)
                 {
+                    bool blocked = areas[a].IsBlocked;
                     var reqs = areas[a].NextLevelRequirements;
                     for (int r = 0; r < reqs.Count; r++)
                     {
@@ -904,18 +968,32 @@ namespace eft_dma_radar.Silk.Tarkov.Hideout
 
                         if (req.FoundInRaid)
                             firBuilder.Add(req.ItemTemplateId);
+
+                        if (!blocked)
+                        {
+                            currentBuilder.Add(req.ItemTemplateId);
+                            if (req.FoundInRaid)
+                                currentFirBuilder.Add(req.ItemTemplateId);
+                        }
                     }
                 }
 
                 NeededItemIds = neededBuilder.Keys.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
                 NeededItemCounts = neededBuilder.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
                 NeededFiRItemIds = firBuilder.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+                CurrentNeededItemIds = currentBuilder.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+                CurrentNeededFiRItemIds = currentFirBuilder.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
                 // Commit to persistent cache so loot filter works during raids
                 _persistentAreas = areas;
                 _persistentNeededIds = NeededItemIds;
                 _persistentNeededCounts = NeededItemCounts;
                 _persistentFiRIds = NeededFiRItemIds;
+                _persistentCurrentNeededIds = CurrentNeededItemIds;
+                _persistentCurrentFiRIds = CurrentNeededFiRItemIds;
+
+                // Mirror to disk so highlighting survives an app restart
+                SavePersistentCache();
 
                 int upgradeable = 0, maxed = 0;
                 for (int a = 0; a < areas.Count; a++)
@@ -1187,6 +1265,86 @@ namespace eft_dma_radar.Silk.Tarkov.Hideout
             TotalFleaValue = 0;
             NeededItemIds = FrozenSet<string>.Empty;
             NeededItemCounts = FrozenDictionary<string, int>.Empty;
+            NeededFiRItemIds = FrozenSet<string>.Empty;
+            CurrentNeededItemIds = FrozenSet<string>.Empty;
+            CurrentNeededFiRItemIds = FrozenSet<string>.Empty;
+            // NOTE: the _persistent* cache (and its disk mirror) is intentionally left intact
+            // so the loot filter keeps highlighting across game restarts / raids.
+        }
+
+        // ── On-disk persistence (survives radar app restarts) ─────────────────
+
+        /// <summary>
+        /// Loads the last-known planner item sets from disk into the persistent cache so the
+        /// loot-filter highlighting works immediately after an app restart — before the player
+        /// has revisited the hideout. A later <see cref="ReadAreas"/> overwrites these with live
+        /// data and re-saves. Call once at startup.
+        /// </summary>
+        public void LoadPersistentCache()
+        {
+            try
+            {
+                if (!File.Exists(_cacheFilePath))
+                    return;
+
+                var cache = JsonSerializer.Deserialize<PersistentCache>(File.ReadAllText(_cacheFilePath));
+                if (cache is null || cache.Version != CacheVersion)
+                    return;
+
+                _persistentNeededIds        = cache.Needed.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+                _persistentFiRIds           = cache.NeededFiR.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+                _persistentCurrentNeededIds = cache.CurrentNeeded.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+                _persistentCurrentFiRIds    = cache.CurrentNeededFiR.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+                _persistentNeededCounts     = cache.NeededCounts.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+
+                Log.WriteLine(
+                    $"[HideoutManager] Loaded planner cache: {_persistentNeededIds.Count} needed " +
+                    $"({_persistentCurrentNeededIds.Count} current), {_persistentFiRIds.Count} FiR.");
+            }
+            catch (Exception ex)
+            {
+                Log.WriteLine($"[HideoutManager] Failed to load planner cache: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Mirrors the current persistent planner item sets to disk. Called after every
+        /// successful <see cref="ReadAreas"/>. Runs on the memory worker thread; the file is tiny.
+        /// </summary>
+        private void SavePersistentCache()
+        {
+            try
+            {
+                var cache = new PersistentCache
+                {
+                    Version          = CacheVersion,
+                    SavedUnix        = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                    Needed           = [.. PersistentNeededItemIds],
+                    NeededFiR        = [.. PersistentNeededFiRItemIds],
+                    CurrentNeeded    = [.. PersistentCurrentNeededItemIds],
+                    CurrentNeededFiR = [.. PersistentCurrentNeededFiRItemIds],
+                    NeededCounts     = new Dictionary<string, int>(PersistentNeededItemCounts, StringComparer.OrdinalIgnoreCase),
+                };
+
+                Directory.CreateDirectory(Path.GetDirectoryName(_cacheFilePath)!);
+                File.WriteAllText(_cacheFilePath, JsonSerializer.Serialize(cache, _cacheJsonOpts));
+            }
+            catch (Exception ex)
+            {
+                Log.WriteLine($"[HideoutManager] Failed to save planner cache: {ex.Message}");
+            }
+        }
+
+        /// <summary>Serializable snapshot of the planner item sets the loot filter consumes.</summary>
+        private sealed class PersistentCache
+        {
+            public int Version { get; set; } = CacheVersion;
+            public long SavedUnix { get; set; }
+            public List<string> Needed { get; set; } = [];
+            public List<string> NeededFiR { get; set; } = [];
+            public List<string> CurrentNeeded { get; set; } = [];
+            public List<string> CurrentNeededFiR { get; set; } = [];
+            public Dictionary<string, int> NeededCounts { get; set; } = [];
         }
 
         // ── Display Helpers (used by HideoutPanel) ───────────────────────────

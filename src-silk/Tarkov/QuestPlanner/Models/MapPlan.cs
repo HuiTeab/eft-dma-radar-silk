@@ -18,6 +18,9 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner.Models
         public int CompletableObjectiveCount { get; init; }
         public int ActiveQuestCount { get; init; }
 
+        /// <summary>Number of follow-up quests unlocked by finishing this map's finishable quests.</summary>
+        public int UnlockCount { get; init; }
+
         public IReadOnlyList<QuestPlan> Quests { get; init; } = [];
         public IReadOnlyList<UnlockedQuest> UnlockedQuests { get; init; } = [];
 

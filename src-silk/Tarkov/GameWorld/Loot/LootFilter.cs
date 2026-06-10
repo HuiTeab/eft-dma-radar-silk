@@ -184,12 +184,20 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Loot
                 }
             }
 
-            // Hideout upgrade items — uses persistent cache so it works during raids
+            // Hideout upgrade items — uses persistent cache so it works during raids.
+            // When HideoutHighlightCurrentOnly is set, query the "current" sets, which only
+            // contain items for upgrades that are actionable now (not blocked by a non-item
+            // prerequisite), ignoring items only needed for still-locked future upgrades.
             if (config.HideoutHighlightLootItems || config.HideoutHighlightFiRItems)
             {
                 var hm = Memory.Hideout;
-                bool isFiR = hm.PersistentNeededFiRItemIds.Contains(item.BsgId);
-                bool isNeeded = hm.PersistentNeededItemIds.Contains(item.BsgId);
+                bool currentOnly = config.HideoutHighlightCurrentOnly;
+                bool isFiR = currentOnly
+                    ? hm.PersistentCurrentNeededFiRItemIds.Contains(item.BsgId)
+                    : hm.PersistentNeededFiRItemIds.Contains(item.BsgId);
+                bool isNeeded = currentOnly
+                    ? hm.PersistentCurrentNeededItemIds.Contains(item.BsgId)
+                    : hm.PersistentNeededItemIds.Contains(item.BsgId);
 
                 // Show if: general highlight is on and item is needed,
                 //       OR FiR-only highlight is on and item is a FiR requirement.

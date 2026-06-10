@@ -483,6 +483,22 @@ namespace eft_dma_radar.Silk.Config
         /// <summary>Only show quests required for Kappa container.</summary>
         public bool QuestKappaFilter { get; set; } = false;
 
+        /// <summary>Quest Planner: only show quests on the Lightkeeper progression line.</summary>
+        public bool QuestLightkeeperFilter { get; set; } = false;
+
+        /// <summary>Quest Planner: restrict to a single trader by name. Empty = all traders.</summary>
+        public string QuestPlannerTraderFilter { get; set; } = "";
+
+        /// <summary>
+        /// Quest Planner: hide quests whose minimum PMC level exceeds this value. 0 = no level gate.
+        /// </summary>
+        public int QuestPlannerMaxLevel { get; set; } = 0;
+
+        /// <summary>
+        /// Quest Planner map ordering: 0 = Recommended (dependency-aware), 1 = Most objectives, 2 = Most unlocks.
+        /// </summary>
+        public int QuestPlannerSortMode { get; set; } = 0;
+
         /// <summary>Show optional quest objectives.</summary>
         public bool QuestShowOptional { get; set; } = true;
 
@@ -536,6 +552,14 @@ namespace eft_dma_radar.Silk.Config
         /// highlight items that specifically need to be Found in Raid.
         /// </summary>
         public bool HideoutHighlightFiRItems { get; set; } = true;
+
+        /// <summary>
+        /// Restrict hideout-upgrade loot highlighting to items needed for upgrades that
+        /// are actionable right now (stations not blocked by an area/trader/skill/quest
+        /// prerequisite). When false (default), items only needed for still-locked future
+        /// upgrades are highlighted too.
+        /// </summary>
+        public bool HideoutHighlightCurrentOnly { get; set; } = false;
 
         // ── Transits ────────────────────────────────────────────────────────────
 

@@ -29,6 +29,12 @@ namespace eft_dma_radar.Silk.UI.Panels
         private static bool _collapsedFir;
         private static bool _collapsedHandOver;
 
+        // Toolbar state
+        private static string[]? _traderOptions;        // ["All Traders", "Prapor", …]
+        private static int _traderIndex;                // 0 = all
+        private static readonly string[] _sortLabels = { "Recommended", "Most objectives", "Most unlocks" };
+        private static string _search = string.Empty;
+
         // Colours — use UITheme
         private static ref readonly Vector4 ColGreen   => ref UITheme.Green;
         private static ref readonly Vector4 ColOrange  => ref UITheme.Orange;
@@ -37,6 +43,9 @@ namespace eft_dma_radar.Silk.UI.Panels
         private static ref readonly Vector4 ColDim     => ref UITheme.Dim;
         private static ref readonly Vector4 ColWhite   => ref UITheme.White;
         private static ref readonly Vector4 ColBlue    => ref UITheme.Blue;
+        private static ref readonly Vector4 ColKappa   => ref UITheme.Kappa;
+        private static ref readonly Vector4 ColGold    => ref UITheme.Gold;
+        private static ref readonly Vector4 ColGrey    => ref UITheme.Grey;
 
         public static void Draw()
         {
@@ -84,13 +93,29 @@ namespace eft_dma_radar.Silk.UI.Panels
 
         private static void DrawToolbar()
         {
-            bool kappa = Config.QuestKappaFilter;
-            if (ImGui.Checkbox("Kappa only", ref kappa))
+            var cfg = Config;
+
+            // Row 1 — progression toggles ("main quest" = Kappa and/or Lightkeeper).
+            bool kappa = cfg.QuestKappaFilter;
+            if (ImGui.Checkbox("Kappa", ref kappa))
             {
-                Config.QuestKappaFilter = kappa;
-                Config.MarkDirty();
+                cfg.QuestKappaFilter = kappa;
+                cfg.MarkDirty();
                 QuestPlannerWorker.ForceRecompute();
             }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Only quests required for the Kappa container.");
+
+            ImGui.SameLine();
+            bool lk = cfg.QuestLightkeeperFilter;
+            if (ImGui.Checkbox("Lightkeeper", ref lk))
+            {
+                cfg.QuestLightkeeperFilter = lk;
+                cfg.MarkDirty();
+                QuestPlannerWorker.ForceRecompute();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Only quests on the Lightkeeper progression line.\nEnable both for the combined main-quest path.");
 
             ImGui.SameLine();
             if (ImGui.Button("Refresh"))
@@ -100,6 +125,111 @@ namespace eft_dma_radar.Silk.UI.Panels
             {
                 ImGui.SameLine();
                 ImGui.TextColored(ColOrange, "(stale)");
+            }
+
+            // Row 2 — trader filter + sort order.
+            EnsureTraderOptions();
+            if (_traderOptions is not null)
+            {
+                ImGui.SetNextItemWidth(160);
+                if (ImGui.Combo("Trader", ref _traderIndex, _traderOptions, _traderOptions.Length))
+                {
+                    cfg.QuestPlannerTraderFilter = _traderIndex <= 0 ? "" : _traderOptions[_traderIndex];
+                    cfg.MarkDirty();
+                    QuestPlannerWorker.ForceRecompute();
+                }
+                ImGui.SameLine();
+            }
+
+            int sortMode = cfg.QuestPlannerSortMode;
+            ImGui.SetNextItemWidth(150);
+            if (ImGui.Combo("Sort", ref sortMode, _sortLabels, _sortLabels.Length))
+            {
+                cfg.QuestPlannerSortMode = Math.Clamp(sortMode, 0, _sortLabels.Length - 1);
+                cfg.MarkDirty();
+                QuestPlannerWorker.ForceRecompute();
+            }
+
+            // Row 3 — level gate + search box (transient; drives the worker directly).
+            int maxLevel = cfg.QuestPlannerMaxLevel;
+            ImGui.SetNextItemWidth(90);
+            if (ImGui.InputInt("Lvl", ref maxLevel))
+            {
+                cfg.QuestPlannerMaxLevel = Math.Clamp(maxLevel, 0, 79);
+                cfg.MarkDirty();
+                QuestPlannerWorker.ForceRecompute();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Hide quests that require a higher PMC level. 0 = show all.");
+
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(-1);
+            if (ImGui.InputTextWithHint("##questSearch", "Search quests / objectives…", ref _search, 128))
+            {
+                QuestPlannerWorker.SearchText = _search;
+                QuestPlannerWorker.ForceRecompute();
+            }
+
+            // Selected-quest banner — this is what the radar pins (shared with the Quest panel).
+            if (!string.IsNullOrEmpty(cfg.QuestSelectedId))
+            {
+                ImGui.TextColored(ColCyan, "◉");
+                ImGui.SameLine();
+                ImGui.TextColored(ColKappa, GetSelectedQuestName(cfg.QuestSelectedId));
+                ImGui.SameLine();
+                if (ImGui.SmallButton("Clear##selQuest"))
+                {
+                    cfg.QuestSelectedId = "";
+                    cfg.MarkDirty();
+                }
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("This quest's zones & items are pinned to the radar.\nRight-click a quest to change.");
+            }
+        }
+
+        // ── Toolbar helpers ──────────────────────────────────────────────────
+
+        private static void EnsureTraderOptions()
+        {
+            if (_traderOptions is not null) return;
+            if (EftDataManager.AllTraders.Count == 0) return; // wait for data to load
+
+            var names = new List<string>(EftDataManager.AllTraders.Values);
+            names.Sort(StringComparer.OrdinalIgnoreCase);
+
+            var opts = new List<string>(names.Count + 1) { "All Traders" };
+            opts.AddRange(names);
+            _traderOptions = opts.ToArray();
+
+            // Restore the persisted selection.
+            var sel = Config.QuestPlannerTraderFilter;
+            if (!string.IsNullOrEmpty(sel))
+            {
+                for (int i = 1; i < _traderOptions.Length; i++)
+                {
+                    if (string.Equals(_traderOptions[i], sel, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _traderIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+
+        private static string GetSelectedQuestName(string questId)
+            => EftDataManager.TaskData.TryGetValue(questId, out var t) && !string.IsNullOrEmpty(t.Name)
+                ? t.Name
+                : questId;
+
+        private static void OpenUrl(string url)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                Log.WriteLine($"[QuestPlannerPanel] Failed to open URL '{url}': {ex.Message}");
             }
         }
 
@@ -260,15 +390,60 @@ namespace eft_dma_radar.Silk.UI.Panels
             var key = mapId + "\u0001" + quest.QuestName;
             bool collapsed = _collapsedQuests.Contains(key);
             var arrow = collapsed ? "\u25B6" : "\u25BC";
-            var label = $"{arrow} {quest.QuestName}  ({quest.Objectives.Count})";
-            if (ImGui.Selectable(label, false))
+            bool isSelected = quest.TaskId.Length > 0
+                && string.Equals(Config.QuestSelectedId, quest.TaskId, StringComparison.OrdinalIgnoreCase);
+
+            ImGui.PushID(key);
+
+            // Header: arrow + progression badges + selection dot + name.
+            ImGui.TextColored(ColWhite, arrow);
+            ImGui.SameLine();
+            if (quest.KappaRequired)
+            {
+                ImGui.TextColored(ColKappa, "★"); // star = Kappa
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Required for Kappa");
+                ImGui.SameLine();
+            }
+            if (quest.LightkeeperRequired)
+            {
+                ImGui.TextColored(ColGold, "⚑"); // flag = Lightkeeper
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Required for Lightkeeper");
+                ImGui.SameLine();
+            }
+            if (isSelected)
+            {
+                ImGui.TextColored(ColCyan, "◉"); // pinned to radar
+                ImGui.SameLine();
+            }
+
+            var label = $"{quest.QuestName}  ({quest.Objectives.Count})";
+            if (ImGui.Selectable(label, isSelected))
             {
                 if (collapsed) _collapsedQuests.Remove(key);
                 else _collapsedQuests.Add(key);
             }
-            if (collapsed) return;
+
+            DrawQuestContextMenu(quest, isSelected);
+
+            if (collapsed)
+            {
+                ImGui.PopID();
+                return;
+            }
 
             ImGui.Indent();
+
+            // Meta line: trader + min level.
+            if (!string.IsNullOrEmpty(quest.TraderName) || quest.MinPlayerLevel > 0)
+            {
+                var meta = quest.TraderName;
+                if (quest.MinPlayerLevel > 0)
+                    meta = string.IsNullOrEmpty(meta)
+                        ? $"Lv {quest.MinPlayerLevel}"
+                        : $"{meta}  ·  Lv {quest.MinPlayerLevel}";
+                ImGui.TextColored(ColGrey, meta);
+            }
+
             foreach (var o in quest.Objectives)
             {
                 ImGui.Bullet();
@@ -279,7 +454,46 @@ namespace eft_dma_radar.Silk.UI.Panels
                     ImGui.TextColored(ColDim, o.ProgressText);
                 }
             }
+
+            // Dependency chain - what finishing this quest opens up.
+            if (quest.Unlocks.Count > 0)
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, ColBlue);
+                ImGui.TextWrapped($"↳ Unlocks: {string.Join(", ", quest.Unlocks)}");
+                ImGui.PopStyleColor();
+            }
+
             ImGui.Unindent();
+            ImGui.PopID();
+        }
+
+        private static void DrawQuestContextMenu(QuestPlan quest, bool isSelected)
+        {
+            if (!ImGui.BeginPopupContextItem("qp_ctx"))
+                return;
+
+            if (quest.TaskId.Length > 0)
+            {
+                if (isSelected)
+                {
+                    if (ImGui.MenuItem("Deselect (radar)"))
+                    {
+                        Config.QuestSelectedId = "";
+                        Config.MarkDirty();
+                    }
+                }
+                else if (ImGui.MenuItem("Select on Radar"))
+                {
+                    Config.QuestSelectedId = quest.TaskId;
+                    Config.QuestSelectedOnly = true;
+                    Config.MarkDirty();
+                }
+            }
+
+            if (!string.IsNullOrEmpty(quest.WikiLink) && ImGui.MenuItem("Open Wiki"))
+                OpenUrl(quest.WikiLink);
+
+            ImGui.EndPopup();
         }
 
         // ── All Maps ─────────────────────────────────────────────────────────

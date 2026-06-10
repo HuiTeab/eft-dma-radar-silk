@@ -47,10 +47,27 @@ namespace eft_dma_radar.Silk.Tarkov.QuestPlanner.Models
     /// </summary>
     internal sealed class QuestPlan
     {
+        /// <summary>BSG task id — used to drive radar selection (Config.QuestSelectedId).</summary>
+        public string TaskId { get; init; } = string.Empty;
+
         public string QuestName { get; init; } = string.Empty;
         public IReadOnlyList<ObjectiveInfo> Objectives { get; init; } = [];
 
         /// <summary>Items to bring in — excludes FIR items that must be found/handed during raid.</summary>
         public IReadOnlyList<BringItem> BringItems { get; init; } = [];
+
+        // ── Metadata (from tarkov.dev) ──────────────────────────────────────
+        public string TraderName { get; init; } = string.Empty;
+        public bool KappaRequired { get; init; }
+        public bool LightkeeperRequired { get; init; }
+
+        /// <summary>Minimum PMC level to start the quest (0 = none).</summary>
+        public int MinPlayerLevel { get; init; }
+
+        /// <summary>Wiki URL for the quest, if known.</summary>
+        public string WikiLink { get; init; } = string.Empty;
+
+        /// <summary>Names of quests this quest unlocks on completion (dependency chain).</summary>
+        public IReadOnlyList<string> Unlocks { get; init; } = [];
     }
 }

@@ -553,6 +553,8 @@ namespace eft_dma_radar.Silk.UI
                 DrawChip("FPS", fpsText, _fps < 30 ? ColorChipWarn : ColorChipValue);
                 ImGui.SameLine();
                 DrawChip("DMA", dmaText, ColorDmaStats);
+                if (ImGui.IsItemHovered())
+                    DrawDmaStatsTooltip();
                 ImGui.SameLine();
                 DrawChip("MAP", mapName, ColorChipAccent);
 
@@ -661,6 +663,46 @@ namespace eft_dma_radar.Silk.UI
 
             // Reserve the layout space so SameLine() works.
             ImGui.Dummy(new Vector2(chipW, chipH));
+        }
+
+        /// <summary>
+        /// Hover breakdown for the DMA chip. Surfaces the per-second bus counters, including
+        /// the uncached-direct-read share that now contributes to the MB/s figure.
+        /// </summary>
+        private static void DrawDmaStatsTooltip()
+        {
+            float mbpsCur  = DMA.DmaStats.ReadMBpsCurrent;
+            float mbpsPeak = DMA.DmaStats.ReadMBpsPeak;
+            float mbpsMax  = DMA.DmaStats.MaxThroughputMBps;
+            long  executes = DMA.DmaStats.ExecutesPerSecond;
+            long  direct   = DMA.DmaStats.DirectReadsPerSecond;
+            long  uncached = DMA.DmaStats.UncachedDirectReadsPerSecond;
+            long  cached   = Math.Max(0, direct - uncached);
+            long  prepared = DMA.DmaStats.PreparedPerSecond;
+
+            ImGui.BeginTooltip();
+            ImGui.TextColored(ColorChipAccent, "DMA Throughput");
+            ImGui.Separator();
+
+            ImGui.TextUnformatted($"Current:  {mbpsCur:F0} MB/s");
+            ImGui.TextUnformatted($"Peak:     {mbpsPeak:F0} MB/s");
+            if (mbpsMax > 0f)
+                ImGui.TextUnformatted($"HW max:   {mbpsMax:F0} MB/s");
+
+            ImGui.Spacing();
+            ImGui.TextColored(ColorChipAccent, "Bus trips / sec");
+            ImGui.Separator();
+            ImGui.TextUnformatted($"Scatter executes:  {executes:N0}  ({prepared:N0} reads batched)");
+            ImGui.TextUnformatted($"Direct reads:      {direct:N0}");
+
+            // Uncached direct reads always hit the bus and ARE counted in MB/s above;
+            // cached ones may be served from VMM's page cache and are excluded.
+            ImGui.Indent(12);
+            ImGui.TextColored(ColorDmaStats, $"• uncached: {uncached:N0}  (in MB/s)");
+            ImGui.TextColored(ColorChipLabel, $"• cached:   {cached:N0}  (cache-served, excluded)");
+            ImGui.Unindent(12);
+
+            ImGui.EndTooltip();
         }
 
         private static void DrawWindows()

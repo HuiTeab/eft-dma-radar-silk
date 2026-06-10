@@ -38,8 +38,9 @@ namespace eft_dma_radar.Silk.UI.Panels
         // ── Cached planner data ──────────────────────────────────────────────
         private static IReadOnlyList<HideoutAreaInfo>? _cachedPlannerSource;
         private static List<(HideoutAreaInfo Area, bool Blocked)>? _cachedPlannerRows;
-        // (TemplateId, Name, Still, Required, FiR)
-        private static List<(string TplId, string Name, int Still, int Required, bool FiR)>? _cachedShoppingList;
+        // (TemplateId, Name, Still, Required, FiR, Avail)
+        // Avail = needed by at least one upgrade that is actionable now (not blocked).
+        private static List<(string TplId, string Name, int Still, int Required, bool FiR, bool Avail)>? _cachedShoppingList;
         // key = templateId → list of "StationName lv→lv: need N (have M)"
         private static Dictionary<string, List<string>>? _cachedItemUsages;
 
@@ -49,6 +50,7 @@ namespace eft_dma_radar.Silk.UI.Panels
         private static bool _shopSortAsc = false;
         private static bool _shopHideDone = true;
         private static bool _shopFirOnly = false;
+        private static bool _shopAvailOnly = false;
 
         // ── Cached stash display list ────────────────────────────────────────
         private static IReadOnlyList<StashItem>? _cachedStashSource;
@@ -487,7 +489,7 @@ namespace eft_dma_radar.Silk.UI.Panels
                 _cachedPlannerSource = areas;
 
                 var rows = new List<(HideoutAreaInfo Area, bool Blocked)>();
-                var shopping = new Dictionary<string, (string TplId, string Name, int Still, int Required, bool FiR)>(StringComparer.Ordinal);
+                var shopping = new Dictionary<string, (string TplId, string Name, int Still, int Required, bool FiR, bool Avail)>(StringComparer.Ordinal);
                 var itemUsages = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
                 for (int i = 0; i < areas.Count; i++)
@@ -498,20 +500,7 @@ namespace eft_dma_radar.Silk.UI.Panels
                     // An area is blocked when it has unfulfilled non-item requirements
                     // (area dependency, trader loyalty, skill, quest) that the player
                     // cannot simply buy their way through.
-                    bool blocked = false;
-                    for (int r = 0; r < area.NextLevelRequirements.Count; r++)
-                    {
-                        var req = area.NextLevelRequirements[r];
-                        if (req.Fulfilled) continue;
-                        if (req.Type is ERequirementType.Area
-                                     or ERequirementType.TraderLoyalty
-                                     or ERequirementType.TraderUnlock
-                                     or ERequirementType.Skill
-                                     or ERequirementType.QuestComplete)
-                        {
-                            blocked = true;
-                        }
-                    }
+                    bool blocked = area.IsBlocked;
 
                     rows.Add((area, blocked));
 
@@ -526,9 +515,9 @@ namespace eft_dma_radar.Silk.UI.Panels
                         string key = req.ItemTemplateId;
                         string name = req.ItemName ?? req.ItemTemplateId;
                         if (shopping.TryGetValue(key, out var existing))
-                            shopping[key] = (key, name, existing.Still + req.StillNeeded, existing.Required + req.RequiredCount, existing.FiR || req.FoundInRaid);
+                            shopping[key] = (key, name, existing.Still + req.StillNeeded, existing.Required + req.RequiredCount, existing.FiR || req.FoundInRaid, existing.Avail || !blocked);
                         else
-                            shopping[key] = (key, name, req.StillNeeded, req.RequiredCount, req.FoundInRaid);
+                            shopping[key] = (key, name, req.StillNeeded, req.RequiredCount, req.FoundInRaid, !blocked);
 
                         // Per-station usage entry for hover tooltip
                         string stationName = HideoutManager.FormatAreaName(area.AreaType.ToString());
@@ -557,7 +546,7 @@ namespace eft_dma_radar.Silk.UI.Panels
                 _cachedPlannerRows = rows;
 
                 // Shopping list
-                var shoppingList = new List<(string TplId, string Name, int Still, int Required, bool FiR)>(shopping.Values);
+                var shoppingList = new List<(string TplId, string Name, int Still, int Required, bool FiR, bool Avail)>(shopping.Values);
                 _cachedShoppingList = shoppingList;
                 _cachedItemUsages = itemUsages;
                 ApplyShopSort();
@@ -653,6 +642,13 @@ namespace eft_dma_radar.Silk.UI.Panels
                     ApplyShopSort();
                 if (ImGui.IsItemHovered())
                     ImGui.SetTooltip("Show only Found-in-Raid items");
+                ImGui.SameLine(0, 12);
+                if (ImGui.Checkbox("Available now", ref _shopAvailOnly))
+                    ApplyShopSort();
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("Show only items for upgrades you can do right now.\n" +
+                        "Hides items only needed for stations still blocked by another\n" +
+                        "requirement (area level, trader loyalty, skill, or quest).");
 
                 ImGui.Spacing();
 
@@ -673,6 +669,7 @@ namespace eft_dma_radar.Silk.UI.Panels
                         var e = shopList[i];
                         if (_shopHideDone && e.Still <= 0) continue;
                         if (_shopFirOnly && !e.FiR) continue;
+                        if (_shopAvailOnly && !e.Avail) continue;
                         if (!string.IsNullOrWhiteSpace(_shopSearch) &&
                             !e.Name.Contains(_shopSearch, StringComparison.OrdinalIgnoreCase)) continue;
                         visibleCount++;
@@ -703,11 +700,12 @@ namespace eft_dma_radar.Silk.UI.Panels
 
                         for (int i = 0; i < shopList.Count; i++)
                         {
-                            var (tplId, name, still, required, fir) = shopList[i];
+                            var (tplId, name, still, required, fir, avail) = shopList[i];
                             bool done = still <= 0;
 
                             if (_shopHideDone && done) continue;
                             if (_shopFirOnly && !fir) continue;
+                            if (_shopAvailOnly && !avail) continue;
                             if (!string.IsNullOrWhiteSpace(_shopSearch) &&
                                 !name.Contains(_shopSearch, StringComparison.OrdinalIgnoreCase)) continue;
 

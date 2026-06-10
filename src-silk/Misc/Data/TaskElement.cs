@@ -15,6 +15,9 @@ namespace eft_dma_radar.Silk.Misc.Data
         [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
 
+        [JsonPropertyName("normalizedName")]
+        public string NormalizedName { get; set; } = string.Empty;
+
         [JsonPropertyName("trader")]
         public TraderRef? Trader { get; set; }
 
@@ -23,6 +26,25 @@ namespace eft_dma_radar.Silk.Misc.Data
 
         [JsonPropertyName("kappaRequired")]
         public bool KappaRequired { get; set; }
+
+        [JsonPropertyName("lightkeeperRequired")]
+        public bool LightkeeperRequired { get; set; }
+
+        /// <summary>Minimum PMC level required to start the task (0 = none).</summary>
+        [JsonPropertyName("minPlayerLevel")]
+        public int MinPlayerLevel { get; set; }
+
+        /// <summary>XP reward for completing the task.</summary>
+        [JsonPropertyName("experience")]
+        public int Experience { get; set; }
+
+        /// <summary>tarkov.dev wiki URL for the task.</summary>
+        [JsonPropertyName("wikiLink")]
+        public string WikiLink { get; set; } = string.Empty;
+
+        /// <summary>Faction gate: "Any", "USEC", or "BEAR".</summary>
+        [JsonPropertyName("factionName")]
+        public string FactionName { get; set; } = string.Empty;
 
         [JsonPropertyName("objectives")]
         public List<ObjectiveElement>? Objectives { get; set; }

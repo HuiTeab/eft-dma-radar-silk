@@ -360,7 +360,10 @@ namespace eft_dma_radar.Silk.UI.Panels
 
             bool hlAll = Config.HideoutHighlightLootItems;
             if (ImGui.Checkbox("🏠 Highlight Upgrade-Needed Loot", ref hlAll))
+            {
                 Config.HideoutHighlightLootItems = hlAll;
+                Config.MarkDirty();
+            }
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip("Highlight any loose item still needed for a pending hideout upgrade.\nUses cached planner data — active even during raids.");
 
@@ -373,6 +376,18 @@ namespace eft_dma_radar.Silk.UI.Panels
             }
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip("Highlight items that must be Found-in-Raid.\nWorks independently — you can disable the general highlight and keep only FiR items marked.");
+
+            bool hlCurrent = Config.HideoutHighlightCurrentOnly;
+            if (ImGui.Checkbox("⏳ Current Upgrades Only", ref hlCurrent))
+            {
+                Config.HideoutHighlightCurrentOnly = hlCurrent;
+                Config.MarkDirty();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Only highlight items for upgrades you can do right now.\n" +
+                    "Hides items only needed for stations still locked behind another\n" +
+                    "requirement (area level, trader loyalty, skill, or quest).\n" +
+                    "Turn off to also mark items for those future upgrades.");
             ImGui.Unindent(16);
 
             ImGui.Spacing();

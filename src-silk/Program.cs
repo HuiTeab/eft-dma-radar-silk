@@ -101,6 +101,10 @@ namespace eft_dma_radar.Silk
 
                 LootFilter.LoadFilterData();
 
+                // Restore last-known hideout planner sets so upgrade-loot highlighting
+                // works immediately after a restart, before the player revisits the hideout.
+                Memory.Hideout.LoadPersistentCache();
+
                 MapManager.ModuleInit();
                 MapMarkerManager.Initialize();
                 Log.WriteLine("[SilkProgram] Map manager initialized, starting RadarWindow...");

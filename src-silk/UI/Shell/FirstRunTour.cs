@@ -30,7 +30,7 @@ namespace eft_dma_radar.Silk.UI.Shell
         [
             new(
                 "Welcome to the radar",
-                "Quick 30-second tour of the new layout. You can skip any time — " +
+                "Quick tour of the layout and the latest features. You can skip any time — " +
                 "the radar still works the way you remember.\n\n" +
                 "Players, their position, and aim direction are the radar's primary signal — " +
                 "everything else hangs off that.",
