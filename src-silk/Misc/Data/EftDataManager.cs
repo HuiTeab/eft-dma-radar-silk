@@ -42,6 +42,9 @@ namespace eft_dma_radar.Silk.Misc.Data
         public static FrozenDictionary<string, string> AllTraders { get; private set; }
             = FrozenDictionary<string, string>.Empty;
 
+        /// <summary>Hideout craft recipes from tarkov.dev. Empty until a v2+ data refresh lands.</summary>
+        public static IReadOnlyList<CraftElement> Crafts { get; private set; } = [];
+
         /// <summary>
         /// Loads the item database at startup.
         /// Priority: disk cache → embedded resource.
@@ -99,9 +102,12 @@ namespace eft_dma_radar.Silk.Misc.Data
             if (data is not null)
                 ApplyData(data);
 
-            // 3. Schedule background API refresh when cache is stale
+            // 3. Schedule background API refresh when cache is stale.
+            // A schema bump (new fields the UI depends on) also forces a refresh —
+            // otherwise users would wait out the 6h window with missing data.
             bool cacheStale = !File.Exists(DataFilePath)
-                || (DateTime.Now - File.GetLastWriteTime(DataFilePath)) > DataUpdateInterval;
+                || (DateTime.Now - File.GetLastWriteTime(DataFilePath)) > DataUpdateInterval
+                || (data is not null && data.SchemaVersion < TarkovMarketJob.SchemaVersion);
 
             if (cacheStale)
             {
@@ -177,6 +183,12 @@ namespace eft_dma_radar.Silk.Misc.Data
                 AllTraders = traderBuilder.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
                 Log.WriteLine($"[EftDataManager] {AllTraders.Count} traders.");
             }
+
+            if (data.Crafts is { Count: > 0 })
+            {
+                Crafts = data.Crafts;
+                Log.WriteLine($"[EftDataManager] {Crafts.Count} crafts.");
+            }
         }
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
@@ -186,8 +198,14 @@ namespace eft_dma_radar.Silk.Misc.Data
 
         private sealed class DataRoot
         {
+            [JsonPropertyName("schemaVersion")]
+            public int SchemaVersion { get; set; }
+
             [JsonPropertyName("items")]
             public List<TarkovMarketItem> Items { get; set; } = [];
+
+            [JsonPropertyName("crafts")]
+            public List<CraftElement> Crafts { get; set; } = [];
 
             [JsonPropertyName("tasks")]
             public List<TaskElement> Tasks { get; set; } = [];

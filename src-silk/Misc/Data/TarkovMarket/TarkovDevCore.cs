@@ -61,6 +61,15 @@ namespace eft_dma_radar.Silk.Misc.Data.TarkovMarket
                         caliber
                       }
                     }
+                    buyFor {
+                      priceRUB
+                      vendor {
+                        name
+                        ... on TraderOffer {
+                          minTraderLevel
+                        }
+                      }
+                    }
                   }
                   questItems {
                     id
@@ -228,10 +237,40 @@ namespace eft_dma_radar.Silk.Misc.Data.TarkovMarket
                       }
                       status
                     }
+                    finishRewards {
+                      items {
+                        item { id name shortName }
+                        count
+                      }
+                      traderStanding {
+                        trader { name }
+                        standing
+                      }
+                      offerUnlock {
+                        trader { name }
+                        level
+                        item { id name shortName }
+                      }
+                      traderUnlock { name }
+                    }
                   }
                   traders {
                     id
                     name
+                  }
+                  crafts {
+                    station { id name normalizedName }
+                    level
+                    duration
+                    requiredItems {
+                      item { id name shortName }
+                      count
+                      attributes { type value }
+                    }
+                    rewardItems {
+                      item { id name shortName }
+                      count
+                    }
                   }
                 }
                 """
@@ -275,6 +314,9 @@ namespace eft_dma_radar.Silk.Misc.Data.TarkovMarket
 
             [JsonPropertyName("traders")]
             public List<ApiTraderElement> Traders { get; set; } = [];
+
+            [JsonPropertyName("crafts")]
+            public List<CraftElement> Crafts { get; set; } = [];
         }
 
         internal sealed class ApiMapElement
@@ -364,6 +406,9 @@ namespace eft_dma_radar.Silk.Misc.Data.TarkovMarket
             [JsonPropertyName("properties")]
             public ApiItemProperties? Properties { get; set; }
 
+            [JsonPropertyName("buyFor")]
+            public List<ApiBuyForElement> BuyFor { get; set; } = [];
+
             [JsonIgnore]
             public long HighestVendorPrice => SellFor
                 .Where(x => x.Vendor?.Name != null && x.Vendor.Name != "Flea Market" && x.PriceRub.HasValue)
@@ -393,6 +438,50 @@ namespace eft_dma_radar.Silk.Misc.Data.TarkovMarket
                         .Average());
                 }
             }
+
+            /// <summary>Cheapest acquisition price across all buy offers (flea + traders). 0 = not buyable.</summary>
+            [JsonIgnore]
+            public long CheapestBuyPrice => BuyFor
+                .Where(x => x.PriceRub is > 0)
+                .Select(x => x.PriceRub!.Value)
+                .DefaultIfEmpty()
+                .Min();
+
+            /// <summary>Source of the cheapest buy offer — "Flea" or e.g. "Therapist LL2".</summary>
+            [JsonIgnore]
+            public string CheapestBuyVendor
+            {
+                get
+                {
+                    var best = BuyFor
+                        .Where(x => x.PriceRub is > 0 && x.Vendor is not null)
+                        .OrderBy(x => x.PriceRub)
+                        .FirstOrDefault();
+                    if (best?.Vendor is not { } v)
+                        return string.Empty;
+                    if (v.Name.Equals("Flea Market", StringComparison.OrdinalIgnoreCase))
+                        return "Flea";
+                    return v.MinTraderLevel is int ll and > 1 ? $"{v.Name} LL{ll}" : v.Name;
+                }
+            }
+        }
+
+        internal sealed class ApiBuyForElement
+        {
+            [JsonPropertyName("priceRUB")]
+            public long? PriceRub { get; set; }
+
+            [JsonPropertyName("vendor")]
+            public ApiBuyVendorElement? Vendor { get; set; }
+        }
+
+        internal sealed class ApiBuyVendorElement
+        {
+            [JsonPropertyName("name")]
+            public string Name { get; set; } = string.Empty;
+
+            [JsonPropertyName("minTraderLevel")]
+            public int? MinTraderLevel { get; set; }
         }
 
         internal sealed class ApiSellForElement

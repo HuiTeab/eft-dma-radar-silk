@@ -384,9 +384,19 @@ namespace eft_dma_radar.Silk.Config
         /// <summary>
         /// Becomes true after the user dismisses (or finishes) the welcome / first-run tour.
         /// Defaults to false so brand-new installs see the tour exactly once.
+        /// Kept for migration — <see cref="TourVersionSeen"/> supersedes it.
         /// </summary>
         [JsonPropertyName("firstRunTourCompleted")]
         public bool FirstRunTourCompleted { get; set; } = false;
+
+        /// <summary>
+        /// Highest tour version the user has seen. When the tour gains new steps its
+        /// version bumps and returning users get a short "What's new" pass showing only
+        /// the added cards. 0 = never seen (pre-versioning installs migrate via
+        /// <see cref="FirstRunTourCompleted"/>).
+        /// </summary>
+        [JsonPropertyName("tourVersionSeen")]
+        public int TourVersionSeen { get; set; } = 0;
 
         /// <summary>Whether the unified settings overlay is open.</summary>
         public bool ShowSettingsOverlay { get; set; } = false;
@@ -458,6 +468,14 @@ namespace eft_dma_radar.Silk.Config
 
         /// <summary>Target monitor index (0-based) for the ESP window. 0 = primary monitor.</summary>
         public int EspTargetScreen { get; set; } = 0;
+
+        // ── Teammates
+
+        /// <summary>
+        /// Auto-apply saved teammate marks (Shift+click) each raid. When off, saved marks are
+        /// retained but ignored. See <see cref="Tarkov.GameWorld.Player.TeammateList"/>.
+        /// </summary>
+        public bool TeammatesEnabled { get; set; } = true;
 
         // ── Hideout
 

@@ -56,7 +56,7 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
         /// a C# offset is sourced from). Old caches with a lower version are
         /// discarded, forcing a fresh live dump.
         /// </summary>
-        private const int CacheSchemaVersion = 2;
+        private const int CacheSchemaVersion = 3;
 
         /// <summary>
         /// Radar assembly ModuleVersionId — changes on every rebuild. Used to invalidate
@@ -224,6 +224,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
                     return false;
                 }
 
+                if (cache.RadarAssemblyMvid != RadarAssemblyMvid)
+                {
+                    Log.WriteLine("[Il2CppDumper] Radar binary rebuilt since cache was written (MVID changed) — performing live dump.");
+                    return false;
+                }
+
                 if (cache.TypeInfoTableRva != expectedRva)
                 {
                     Log.WriteLine(
@@ -261,6 +267,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
                 var cache = TryReadAnyCache(out var src);
                 if (cache is null)
                     return false;
+
+                if (cache.RadarAssemblyMvid != RadarAssemblyMvid)
+                {
+                    Log.WriteLine("[Il2CppDumper] Radar binary rebuilt since cache was written (MVID changed) — performing live dump.");
+                    return false;
+                }
 
                 if (cache.GameAssemblyTimestamp != timestamp || cache.GameAssemblySizeOfImage != sizeOfImage)
                 {

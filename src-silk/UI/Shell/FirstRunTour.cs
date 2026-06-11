@@ -9,22 +9,31 @@ namespace eft_dma_radar.Silk.UI.Shell
 {
     /// <summary>
     /// Lightweight first-run welcome tour. Shows a short series of card-style
-    /// overlays explaining the four main UX entry points (sidebar, status bar,
-    /// preset selector, command palette / radial). Driven entirely by ImGui —
+    /// overlays explaining the main UX entry points (sidebar, status bar,
+    /// on-map interactions, preset selector). Driven entirely by ImGui —
     /// no Skia, no input grab, no impact on the radar render path.
     ///
-    /// The tour is shown exactly once per install: it auto-opens when
-    /// <see cref="SilkConfig.FirstRunTourCompleted"/> is false, and persists
-    /// completion (Finish or Skip) to config so it never reappears.
+    /// Steps are versioned: new installs see the full tour once, while users who
+    /// already finished an earlier tour get a short "What's new" pass showing only
+    /// the steps added since (tracked via <see cref="SilkConfig.TourVersionSeen"/>).
     /// </summary>
     internal static class FirstRunTour
     {
+        /// <summary>
+        /// Bump when adding steps so existing users get a "What's new" pass.
+        /// Tag the new steps with <c>AddedIn = TourVersion</c>.
+        /// </summary>
+        private const int TourVersion = 2;
+
         public static bool IsOpen { get; private set; }
 
         private static int _step;
         private static bool _autoTriggered;
 
-        private sealed record Step(string Title, string Body, string? Tip);
+        private sealed record Step(string Title, string Body, string? Tip, int AddedIn = 1);
+
+        /// <summary>Steps shown this session — full list, or just the new ones in What's-new mode.</summary>
+        private static IReadOnlyList<Step> _activeSteps = [];
 
         private static readonly Step[] _steps =
         [
@@ -56,30 +65,57 @@ namespace eft_dma_radar.Silk.UI.Shell
                 "Click the v / ^ chevron to collapse the bar entirely.",
                 "Players are split T (teammate) / P (PMC) / S (player scav) / AI."),
             new(
+                "Work directly on the map",
+                "The radar canvas itself is interactive:\n\n" +
+                "  Right-click          — place / edit a map marker (label, color, shared)\n" +
+                "  Shift + Left-click   — mark a player as your teammate. Saved by their\n" +
+                "                         account ID and re-applied automatically every raid.\n" +
+                "                         Manage saved marks in Settings → Teammates.\n" +
+                "  Drag                 — the kill feed and player counter overlays move\n" +
+                "                         wherever you drop them.",
+                "Hover any dot on the radar for a detail tooltip.",
+                AddedIn: 2),
+            new(
                 "Presets — switch a radar config in one click",
                 "The preset combo in the top menu bar bundles every radar-layer + " +
                 "player-display toggle into named profiles:\n" +
                 "  Stealth  ·  Loot Run  ·  PvP  ·  Quests  ·  Custom\n\n" +
                 "Bind the Previous / Next Preset hotkeys in the Hotkeys panel to cycle them " +
                 "from your second keyboard.",
-                "Drift from a built-in preset auto-flips you to Custom."),
-            new(
-                "Command palette",
-                "Fast keyboard-only access to every action without hunting through menus:\n\n" +
-                "  Press Ctrl+K from anywhere in the radar. Type to fuzzy-search every " +
-                "hotkey action and panel, then press Enter to invoke.\n\n" +
-                "Everything else can also be bound as a hotkey in the Hotkeys panel.",
-                "That's it — happy hunting."),
+                "Drift from a built-in preset auto-flips you to Custom. That's it — happy hunting."),
         ];
 
         /// <summary>
-        /// Open the tour from the start. Called automatically the first time
-        /// the radar window finishes initializing if the user hasn't seen it.
+        /// Open the full tour from the start — first run, or "Show Welcome Tour"
+        /// from the command palette.
         /// </summary>
         public static void Open()
         {
             IsOpen = true;
             _step = 0;
+            _activeSteps = _steps;
+        }
+
+        /// <summary>
+        /// Open only the steps added after <paramref name="sinceVersion"/> — the
+        /// "What's new" pass for users who already finished an earlier tour.
+        /// </summary>
+        private static void OpenWhatsNew(int sinceVersion)
+        {
+            var fresh = new List<Step>();
+            foreach (var s in _steps)
+                if (s.AddedIn > sinceVersion)
+                    fresh.Add(s);
+
+            if (fresh.Count == 0)
+            {
+                Finish(); // nothing new to show — just persist the version bump
+                return;
+            }
+
+            IsOpen = true;
+            _step = 0;
+            _activeSteps = fresh;
         }
 
         /// <summary>Close the tour without marking it complete (so it can reappear).</summary>
@@ -90,16 +126,18 @@ namespace eft_dma_radar.Silk.UI.Shell
         }
 
         /// <summary>
-        /// Close the tour and persist completion so it never auto-opens again.
+        /// Close the tour and persist the seen version so it never auto-opens
+        /// again until new steps are added.
         /// </summary>
         public static void Finish()
         {
             IsOpen = false;
             _step = 0;
             var cfg = SilkProgram.Config;
-            if (!cfg.FirstRunTourCompleted)
+            if (!cfg.FirstRunTourCompleted || cfg.TourVersionSeen < TourVersion)
             {
                 cfg.FirstRunTourCompleted = true;
+                cfg.TourVersionSeen = TourVersion;
                 cfg.MarkDirty();
             }
         }
@@ -115,11 +153,20 @@ namespace eft_dma_radar.Silk.UI.Shell
             if (!_autoTriggered)
             {
                 _autoTriggered = true;
-                if (!SilkProgram.Config.FirstRunTourCompleted)
-                    Open();
+                var cfg = SilkProgram.Config;
+
+                // Pre-versioning installs only have the bool — treat "completed" as v1 seen.
+                int seen = cfg.TourVersionSeen;
+                if (seen == 0 && cfg.FirstRunTourCompleted)
+                    seen = 1;
+
+                if (seen == 0)
+                    Open();                 // brand-new install: full tour
+                else if (seen < TourVersion)
+                    OpenWhatsNew(seen);     // returning user: only the new cards
             }
 
-            if (!IsOpen)
+            if (!IsOpen || _activeSteps.Count == 0)
                 return;
 
             // Esc anywhere skips.
@@ -159,8 +206,9 @@ namespace eft_dma_radar.Silk.UI.Shell
             ImGui.PopStyleVar(3);
 
             // Foreground card.
-            int idx = Math.Clamp(_step, 0, _steps.Length - 1);
-            var step = _steps[idx];
+            int idx = Math.Clamp(_step, 0, _activeSteps.Count - 1);
+            var step = _activeSteps[idx];
+            bool whatsNew = _activeSteps.Count != _steps.Length;
 
             var cardSize = new Vector2(560f * scale, 320f * scale);
             var cardPos = viewport.Pos + (viewport.Size - cardSize) * 0.5f;
@@ -180,8 +228,10 @@ namespace eft_dma_radar.Silk.UI.Shell
 
             if (ImGui.Begin("##tour_card", cardFlags))
             {
-                // Step counter (top-right).
-                string counter = $"{idx + 1} / {_steps.Length}";
+                // Step counter (top-right), with a "What's new" badge in update mode.
+                string counter = whatsNew
+                    ? $"What's new · {idx + 1} / {_activeSteps.Count}"
+                    : $"{idx + 1} / {_activeSteps.Count}";
                 float counterW = ImGui.CalcTextSize(counter).X;
                 ImGui.SetCursorPosX(cardSize.X - counterW - 20f * scale);
                 ImGui.TextColored(new Vector4(0.55f, 0.58f, 0.62f, 1f), counter);
@@ -221,7 +271,7 @@ namespace eft_dma_radar.Silk.UI.Shell
                 }
 
                 bool hasBack = idx > 0;
-                bool isLast = idx >= _steps.Length - 1;
+                bool isLast = idx >= _activeSteps.Count - 1;
 
                 float rightW = (isLast ? 110f : 90f) * scale + (hasBack ? (80f * scale + 8f) : 0f);
                 ImGui.SameLine(cardSize.X - rightW - 20f * scale);
@@ -259,7 +309,7 @@ namespace eft_dma_radar.Silk.UI.Shell
                     if (isLast)
                         Finish();
                     else
-                        _step = Math.Min(_steps.Length - 1, _step + 1);
+                        _step = Math.Min(_activeSteps.Count - 1, _step + 1);
                 }
             }
             ImGui.End();

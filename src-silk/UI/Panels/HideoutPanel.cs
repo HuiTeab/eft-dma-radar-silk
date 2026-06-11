@@ -28,6 +28,7 @@ namespace eft_dma_radar.Silk.UI.Panels
         private static bool _showUpgrades = true;
         private static bool _showPlanner = false;
         private static bool _showStash = true;
+        private static bool _showCrafts = false;
         private static bool _refreshing;
 
         // ── Cached upgrade section data ──────────────────────────────────────
@@ -38,11 +39,15 @@ namespace eft_dma_radar.Silk.UI.Panels
         // ── Cached planner data ──────────────────────────────────────────────
         private static IReadOnlyList<HideoutAreaInfo>? _cachedPlannerSource;
         private static List<(HideoutAreaInfo Area, bool Blocked)>? _cachedPlannerRows;
-        // (TemplateId, Name, Still, Required, FiR, Avail)
+        // (TemplateId, Name, Still, Required, FiR, Avail, Unit, Vendor)
         // Avail = needed by at least one upgrade that is actionable now (not blocked).
-        private static List<(string TplId, string Name, int Still, int Required, bool FiR, bool Avail)>? _cachedShoppingList;
+        // Unit/Vendor = cheapest acquisition price for one (0 / "" = not buyable or unknown).
+        private static List<(string TplId, string Name, int Still, int Required, bool FiR, bool Avail, long Unit, string Vendor)>? _cachedShoppingList;
         // key = templateId → list of "StationName lv→lv: need N (have M)"
         private static Dictionary<string, List<string>>? _cachedItemUsages;
+        // Money summary for the shopping list, computed at rebuild.
+        private static long _shopTotalCost, _shopAvailCost;
+        private static int _shopFirCount, _shopUnpricedCount;
 
         // Shopping list UI state
         private static string _shopSearch = string.Empty;
@@ -111,6 +116,9 @@ namespace eft_dma_radar.Silk.UI.Panels
 
             if (_showPlanner)
                 DrawPlannerSection();
+
+            if (_showCrafts)
+                DrawCraftsSection();
         }
 
         // ── Toolbar ──────────────────────────────────────────────────────────
@@ -173,12 +181,16 @@ namespace eft_dma_radar.Silk.UI.Panels
                 ImGui.TextColored(ColSlate, _statusText);
 
             // Section toggles
-            ImGui.SameLine(ImGui.GetContentRegionAvail().X - 280);
+            ImGui.SameLine(ImGui.GetContentRegionAvail().X - 350);
             ImGui.Checkbox("Stash", ref _showStash);
             ImGui.SameLine();
             ImGui.Checkbox("Upgrades", ref _showUpgrades);
             ImGui.SameLine();
             ImGui.Checkbox("Planner", ref _showPlanner);
+            ImGui.SameLine();
+            ImGui.Checkbox("Crafts", ref _showCrafts);
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Craft recipes (tarkov.dev) with profit per hour,\nfiltered by your actual station levels.");
             ImGui.SameLine();
             ImGui.Checkbox("Group", ref _grouped);
         }
@@ -456,7 +468,8 @@ namespace eft_dma_radar.Silk.UI.Panels
                     0 => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase),
                     1 => (a.Required - a.Still).CompareTo(b.Required - b.Still),    // have
                     2 => a.Still.CompareTo(b.Still),
-                    3 => a.FiR.CompareTo(b.FiR),
+                    3 => (a.Unit * a.Still).CompareTo(b.Unit * b.Still),            // cost to finish
+                    4 => a.FiR.CompareTo(b.FiR),
                     _ => b.Still.CompareTo(a.Still)
                 };
                 return _shopSortAsc ? cmp : -cmp;
@@ -545,8 +558,26 @@ namespace eft_dma_radar.Silk.UI.Panels
 
                 _cachedPlannerRows = rows;
 
-                // Shopping list
-                var shoppingList = new List<(string TplId, string Name, int Still, int Required, bool FiR, bool Avail)>(shopping.Values);
+                // Shopping list — attach acquisition prices and compute the money summary.
+                var shoppingList = new List<(string TplId, string Name, int Still, int Required, bool FiR, bool Avail, long Unit, string Vendor)>(shopping.Count);
+                _shopTotalCost = 0; _shopAvailCost = 0; _shopFirCount = 0; _shopUnpricedCount = 0;
+                foreach (var v in shopping.Values)
+                {
+                    long unit = 0; string vendor = string.Empty;
+                    if (EftDataManager.AllItems.TryGetValue(v.TplId, out var mi))
+                    {
+                        if (mi.BuyPrice > 0) { unit = mi.BuyPrice; vendor = mi.BuyVendor; }
+                        else if (mi.FleaPrice > 0) { unit = mi.FleaPrice; vendor = "Flea (est.)"; }
+                    }
+                    shoppingList.Add((v.TplId, v.Name, v.Still, v.Required, v.FiR, v.Avail, unit, vendor));
+
+                    if (v.Still <= 0) continue;
+                    if (v.FiR) { _shopFirCount++; continue; }       // must be found, can't be bought
+                    if (unit <= 0) { _shopUnpricedCount++; continue; }
+                    long cost = unit * v.Still;
+                    _shopTotalCost += cost;
+                    if (v.Avail) _shopAvailCost += cost;
+                }
                 _cachedShoppingList = shoppingList;
                 _cachedItemUsages = itemUsages;
                 ApplyShopSort();
@@ -682,7 +713,7 @@ namespace eft_dma_radar.Silk.UI.Panels
                         ImGui.TableSetupColumn("Item",       ImGuiTableColumnFlags.DefaultSort, 3.5f, 0);
                         ImGui.TableSetupColumn("Have/Need",  ImGuiTableColumnFlags.None,        1.4f, 1);
                         ImGui.TableSetupColumn("Still Need", ImGuiTableColumnFlags.PreferSortDescending, 1.2f, 2);
-                        ImGui.TableSetupColumn("%",          ImGuiTableColumnFlags.None,        0.7f, 3);
+                        ImGui.TableSetupColumn("Cost",       ImGuiTableColumnFlags.PreferSortDescending, 1.3f, 3);
                         ImGui.TableSetupColumn("FiR",        ImGuiTableColumnFlags.None,        0.55f, 4);
                         ImGui.TableSetupScrollFreeze(0, 1);
                         ImGui.TableHeadersRow();
@@ -700,7 +731,7 @@ namespace eft_dma_radar.Silk.UI.Panels
 
                         for (int i = 0; i < shopList.Count; i++)
                         {
-                            var (tplId, name, still, required, fir, avail) = shopList[i];
+                            var (tplId, name, still, required, fir, avail, unit, vendor) = shopList[i];
                             bool done = still <= 0;
 
                             if (_shopHideDone && done) continue;
@@ -710,7 +741,6 @@ namespace eft_dma_radar.Silk.UI.Panels
                                 !name.Contains(_shopSearch, StringComparison.OrdinalIgnoreCase)) continue;
 
                             int have = required - still;
-                            float pct = required > 0 ? have / (float)required * 100f : 100f;
 
                             ImGui.TableNextRow();
 
@@ -742,10 +772,20 @@ namespace eft_dma_radar.Silk.UI.Panels
                             else
                                 ImGui.TextColored(ColRed, still.ToString());
 
-                            // % complete
+                            // Cost to finish this item (unit price \u00d7 still needed)
                             ImGui.TableNextColumn();
-                            var pctColor = pct >= 100f ? ColGreen : pct >= 50f ? ColOrange : ColRed;
-                            ImGui.TextColored(pctColor, $"{pct:0}%");
+                            if (done)
+                                ImGui.TextColored(ColGreen, "\u2014");
+                            else if (fir)
+                                ImGui.TextColored(ColOrange, "FiR");
+                            else if (unit <= 0)
+                                ImGui.TextColored(ColGrey, "?");
+                            else
+                            {
+                                ImGui.TextUnformatted(HideoutManager.FormatPrice(unit * still));
+                                if (ImGui.IsItemHovered())
+                                    ImGui.SetTooltip($"{HideoutManager.FormatPrice(unit)} each \u2014 {vendor}");
+                            }
 
                             // FiR
                             ImGui.TableNextColumn();
@@ -759,9 +799,328 @@ namespace eft_dma_radar.Silk.UI.Panels
 
                         ImGui.EndTable();
                     }
+
+                    // Money summary — what finishing everything would cost at current prices.
+                    if (_shopTotalCost > 0 || _shopFirCount > 0 || _shopUnpricedCount > 0)
+                    {
+                        ImGui.TextColored(ColGold, $"Cost to finish: {HideoutManager.FormatPrice(_shopTotalCost)}");
+                        ImGui.SameLine();
+                        ImGui.TextColored(ColGrey, $"·  available now: {HideoutManager.FormatPrice(_shopAvailCost)}");
+                        if (_shopFirCount > 0)
+                        {
+                            ImGui.SameLine();
+                            ImGui.TextColored(ColOrange, $"·  {_shopFirCount} FiR item(s) must be found");
+                        }
+                        if (_shopUnpricedCount > 0)
+                        {
+                            ImGui.SameLine();
+                            ImGui.TextColored(ColGrey, $"·  {_shopUnpricedCount} unpriced");
+                            if (ImGui.IsItemHovered())
+                                ImGui.SetTooltip("No buy offer found (banned from flea / barter-only),\nor prices haven't downloaded yet.");
+                        }
+                    }
                 }
                 ImGui.Spacing();
             }
+        }
+
+        // ── Crafts Section ───────────────────────────────────────────────────
+
+        /// <summary>One display row of the crafts table — fully precomputed at rebuild.</summary>
+        private sealed record CraftRow(
+            string Output, string Station, int ReqLevel, bool Available,
+            int DurationSec, long Cost, bool CostIncomplete, long Value, long Profit, double ProfitPerHour,
+            string[] Tooltip);
+
+        private static IReadOnlyList<CraftElement>? _craftSource;
+        private static IReadOnlyList<HideoutAreaInfo>? _craftAreaSource;
+        private static List<CraftRow>? _craftRows;
+        private static bool _craftLevelsKnown;
+        private static string _craftSearch = string.Empty;
+        private static bool _craftAvailOnly = true;
+        private static int _craftSortCol = 5;   // default: ₽/h
+        private static bool _craftSortAsc = false;
+
+        /// <summary>
+        /// tarkov.dev station normalizedName → <see cref="EAreaType"/> name, for the cases
+        /// where they differ (both sides letters-only lowercase).
+        /// </summary>
+        private static readonly Dictionary<string, string> _stationAliases = new(StringComparer.Ordinal)
+        {
+            ["lavatory"] = "watercloset",
+            ["nutritionunit"] = "kitchen",
+            ["halloffame"] = "placeoffame",
+            ["christmastree"] = "christmasillumination",
+        };
+
+        private static string LettersOnly(string s)
+        {
+            var sb = new StringBuilder(s.Length);
+            foreach (var ch in s)
+                if (char.IsLetter(ch))
+                    sb.Append(char.ToLowerInvariant(ch));
+            return sb.ToString();
+        }
+
+        private static void DrawCraftsSection()
+        {
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+            ImGui.TextColored(ColGold, "⚒ Crafts");
+            ImGui.Spacing();
+
+            var crafts = EftDataManager.Crafts;
+            if (crafts.Count == 0)
+            {
+                ImGui.TextDisabled("Craft data not downloaded yet — it arrives with the automatic\n" +
+                                   "tarkov.dev refresh shortly after start (needs internet).");
+                return;
+            }
+
+            // Station levels from the live hideout read, falling back to the persistent
+            // cache from a previous session. Empty = availability unknown.
+            var mgr = Manager;
+            var areas = mgr.Areas.Count > 0 ? mgr.Areas : mgr.PersistentAreas;
+
+            if (!ReferenceEquals(crafts, _craftSource) || !ReferenceEquals(areas, _craftAreaSource))
+            {
+                _craftSource = crafts;
+                _craftAreaSource = areas;
+                RebuildCraftRows(crafts, areas);
+                ApplyCraftSort();
+            }
+
+            var rows = _craftRows!;
+
+            if (!_craftLevelsKnown)
+                ImGui.TextDisabled("Station levels unknown — Refresh in hideout to filter by what you can craft.");
+
+            // Filter bar
+            ImGui.SetNextItemWidth(200);
+            ImGui.InputTextWithHint("##craftSearch", "Filter crafts...", ref _craftSearch, 64);
+            ImGui.SameLine(0, 12);
+            ImGui.Checkbox("Available only", ref _craftAvailOnly);
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Only crafts your current station levels allow.");
+            ImGui.Spacing();
+
+            bool availFilter = _craftAvailOnly && _craftLevelsKnown;
+
+            int visibleCount = 0;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var r = rows[i];
+                if (availFilter && !r.Available) continue;
+                if (!string.IsNullOrWhiteSpace(_craftSearch)
+                    && !r.Output.Contains(_craftSearch, StringComparison.OrdinalIgnoreCase)
+                    && !r.Station.Contains(_craftSearch, StringComparison.OrdinalIgnoreCase)) continue;
+                visibleCount++;
+            }
+
+            float tableH = Math.Min(visibleCount * 22f + 30f, 380f);
+            var tblFlags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg
+                         | ImGuiTableFlags.ScrollY | ImGuiTableFlags.Sortable
+                         | ImGuiTableFlags.SizingStretchProp;
+
+            if (ImGui.BeginTable("CraftsTable", 6, tblFlags, new Vector2(0, tableH)))
+            {
+                ImGui.TableSetupColumn("Craft",   ImGuiTableColumnFlags.None, 2.8f, 0);
+                ImGui.TableSetupColumn("Station", ImGuiTableColumnFlags.None, 1.5f, 1);
+                ImGui.TableSetupColumn("Time",    ImGuiTableColumnFlags.None, 0.8f, 2);
+                ImGui.TableSetupColumn("Cost",    ImGuiTableColumnFlags.PreferSortDescending, 1.1f, 3);
+                ImGui.TableSetupColumn("Value",   ImGuiTableColumnFlags.PreferSortDescending, 1.1f, 4);
+                ImGui.TableSetupColumn("₽/h", ImGuiTableColumnFlags.DefaultSort | ImGuiTableColumnFlags.PreferSortDescending, 1.1f, 5);
+                ImGui.TableSetupScrollFreeze(0, 1);
+                ImGui.TableHeadersRow();
+
+                var sortSpecs = ImGui.TableGetSortSpecs();
+                if (sortSpecs.SpecsDirty)
+                {
+                    var spec = sortSpecs.Specs;
+                    _craftSortCol = (int)spec.ColumnUserID;
+                    _craftSortAsc = spec.SortDirection == ImGuiSortDirection.Ascending;
+                    sortSpecs.SpecsDirty = false;
+                    ApplyCraftSort();
+                }
+
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    var r = rows[i];
+                    if (availFilter && !r.Available) continue;
+                    if (!string.IsNullOrWhiteSpace(_craftSearch)
+                        && !r.Output.Contains(_craftSearch, StringComparison.OrdinalIgnoreCase)
+                        && !r.Station.Contains(_craftSearch, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    ImGui.TableNextRow();
+
+                    // Craft output
+                    ImGui.TableNextColumn();
+                    ImGui.TextColored(r.Available ? UITheme.White : ColDim, r.Output);
+                    if (ImGui.IsItemHovered())
+                    {
+                        ImGui.BeginTooltip();
+                        ImGui.TextColored(ColGold, r.Output);
+                        ImGui.TextColored(r.Profit >= 0 ? ColGreen : ColRed,
+                            $"Cost {HideoutManager.FormatPrice(r.Cost)}  →  Value {HideoutManager.FormatPrice(r.Value)}   Profit {HideoutManager.FormatPrice(r.Profit)}");
+                        ImGui.Separator();
+                        for (int t = 0; t < r.Tooltip.Length; t++)
+                            ImGui.TextUnformatted(r.Tooltip[t]);
+                        ImGui.EndTooltip();
+                    }
+
+                    // Station + required level
+                    ImGui.TableNextColumn();
+                    ImGui.TextColored(r.Available ? ColGrey : ColOrange, $"{r.Station} lv{r.ReqLevel}");
+                    if (!r.Available && ImGui.IsItemHovered())
+                        ImGui.SetTooltip("Station level too low");
+
+                    // Duration
+                    ImGui.TableNextColumn();
+                    ImGui.TextUnformatted(FormatDuration(r.DurationSec));
+
+                    // Cost
+                    ImGui.TableNextColumn();
+                    ImGui.TextUnformatted(r.CostIncomplete
+                        ? $"{HideoutManager.FormatPrice(r.Cost)}+?"
+                        : HideoutManager.FormatPrice(r.Cost));
+                    if (r.CostIncomplete && ImGui.IsItemHovered())
+                        ImGui.SetTooltip("Some ingredients have no known buy price — true cost is higher.");
+
+                    // Value
+                    ImGui.TableNextColumn();
+                    ImGui.TextUnformatted(HideoutManager.FormatPrice(r.Value));
+
+                    // Profit per hour
+                    ImGui.TableNextColumn();
+                    ImGui.TextColored(r.ProfitPerHour >= 0 ? ColGreen : ColRed,
+                        HideoutManager.FormatPrice((long)r.ProfitPerHour));
+                }
+
+                ImGui.EndTable();
+            }
+            ImGui.Spacing();
+        }
+
+        private static void RebuildCraftRows(IReadOnlyList<CraftElement> crafts, IReadOnlyList<HideoutAreaInfo> areas)
+        {
+            // Live station levels keyed by letters-only enum name ("watercollector" etc.)
+            var levels = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (int i = 0; i < areas.Count; i++)
+                levels[LettersOnly(areas[i].AreaType.ToString())] = areas[i].CurrentLevel;
+            _craftLevelsKnown = levels.Count > 0;
+
+            var rows = new List<CraftRow>(crafts.Count);
+            var tip = new List<string>(8);
+
+            foreach (var c in crafts)
+            {
+                if (c.Station is null || c.RewardItems is not { Count: > 0 })
+                    continue;
+
+                // Output label + total reward value (best sell across flea/trader).
+                string output = "?";
+                long value = 0;
+                bool firstReward = true;
+                foreach (var r in c.RewardItems)
+                {
+                    if (r.Item is null) continue;
+                    string nm = DisplayNameFor(r.Item);
+                    if (firstReward)
+                    {
+                        output = r.Count > 1 ? $"{nm} ×{r.Count}" : nm;
+                        firstReward = false;
+                    }
+                    if (EftDataManager.AllItems.TryGetValue(r.Item.Id, out var rmi))
+                        value += (long)rmi.BestPrice * r.Count;
+                }
+                if (firstReward)
+                    continue; // no usable reward item
+
+                // Ingredient cost (tools are returned — listed but free).
+                tip.Clear();
+                long cost = 0;
+                bool costIncomplete = false;
+                if (c.RequiredItems is not null)
+                {
+                    foreach (var req in c.RequiredItems)
+                    {
+                        if (req.Item is null) continue;
+                        string nm = DisplayNameFor(req.Item);
+                        if (req.IsTool)
+                        {
+                            tip.Add($"{nm} — tool (returned)");
+                            continue;
+                        }
+
+                        long unit = 0; string vendor = string.Empty;
+                        if (EftDataManager.AllItems.TryGetValue(req.Item.Id, out var mi))
+                        {
+                            if (mi.BuyPrice > 0) { unit = mi.BuyPrice; vendor = mi.BuyVendor; }
+                            else if (mi.FleaPrice > 0) { unit = mi.FleaPrice; vendor = "Flea (est.)"; }
+                        }
+
+                        if (unit <= 0)
+                        {
+                            costIncomplete = true;
+                            tip.Add($"{nm} ×{req.Count} — price unknown");
+                        }
+                        else
+                        {
+                            cost += unit * req.Count;
+                            tip.Add($"{nm} ×{req.Count} — {HideoutManager.FormatPrice(unit * req.Count)} ({vendor})");
+                        }
+                    }
+                }
+
+                string key = LettersOnly(c.Station.NormalizedName);
+                if (_stationAliases.TryGetValue(key, out var alias))
+                    key = alias;
+                bool available = !_craftLevelsKnown
+                    || (levels.TryGetValue(key, out int lvl) && lvl >= c.Level);
+
+                long profit = value - cost;
+                double hours = Math.Max(c.DurationSeconds, 60) / 3600.0;
+
+                rows.Add(new CraftRow(
+                    output, c.Station.Name, c.Level, available,
+                    c.DurationSeconds, cost, costIncomplete, value, profit, profit / hours,
+                    tip.ToArray()));
+            }
+
+            _craftRows = rows;
+        }
+
+        private static string DisplayNameFor(CraftElement.ItemRef item)
+        {
+            if (EftDataManager.AllItems.TryGetValue(item.Id, out var mi) && !string.IsNullOrEmpty(mi.ShortName))
+                return mi.ShortName;
+            return string.IsNullOrEmpty(item.ShortName) ? item.Name : item.ShortName;
+        }
+
+        private static void ApplyCraftSort()
+        {
+            if (_craftRows is null) return;
+            _craftRows.Sort((a, b) =>
+            {
+                int cmp = _craftSortCol switch
+                {
+                    0 => string.Compare(a.Output, b.Output, StringComparison.OrdinalIgnoreCase),
+                    1 => string.Compare(a.Station, b.Station, StringComparison.OrdinalIgnoreCase),
+                    2 => a.DurationSec.CompareTo(b.DurationSec),
+                    3 => a.Cost.CompareTo(b.Cost),
+                    4 => a.Value.CompareTo(b.Value),
+                    5 => a.ProfitPerHour.CompareTo(b.ProfitPerHour),
+                    _ => b.ProfitPerHour.CompareTo(a.ProfitPerHour),
+                };
+                return _craftSortAsc ? cmp : -cmp;
+            });
+        }
+
+        private static string FormatDuration(int seconds)
+        {
+            var ts = TimeSpan.FromSeconds(seconds);
+            return ts.TotalHours >= 1 ? $"{(int)ts.TotalHours}h {ts.Minutes:00}m" : $"{ts.Minutes}m";
         }
 
         private static string FormatRequirement(HideoutRequirement req) => req.Type switch

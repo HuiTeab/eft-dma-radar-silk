@@ -45,6 +45,14 @@ namespace eft_dma_radar.Silk.Misc.Data
         [JsonPropertyName("caliber")]
         public string? Caliber { get; init; }
 
+        /// <summary>Cheapest acquisition price across flea + trader buy offers. 0 = not buyable.</summary>
+        [JsonPropertyName("buyPrice")]
+        public long BuyPrice { get; init; }
+
+        /// <summary>Source of the cheapest buy offer — "Flea" or e.g. "Therapist LL2". Empty when not buyable.</summary>
+        [JsonPropertyName("buyVendor")]
+        public string BuyVendor { get; init; } = string.Empty;
+
         /// <summary>Best price (max of flea and trader).</summary>
         [JsonIgnore]
         public int BestPrice => (int)Math.Max(FleaPrice, TraderPrice);

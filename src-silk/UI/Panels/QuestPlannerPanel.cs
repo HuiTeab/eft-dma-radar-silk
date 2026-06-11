@@ -221,6 +221,82 @@ namespace eft_dma_radar.Silk.UI.Panels
                 ? t.Name
                 : questId;
 
+        // ── Rewards (tarkov.dev finishRewards) ───────────────────────────────
+
+        // Built strings cached per task id; invalidated when the task database
+        // instance is swapped by a background data refresh.
+        private static readonly Dictionary<string, string> _rewardsCache = new(StringComparer.OrdinalIgnoreCase);
+        private static object? _rewardsCacheSource;
+
+        private static string GetRewardsLine(string taskId)
+        {
+            if (taskId.Length == 0)
+                return string.Empty;
+
+            if (!ReferenceEquals(_rewardsCacheSource, EftDataManager.TaskData))
+            {
+                _rewardsCache.Clear();
+                _rewardsCacheSource = EftDataManager.TaskData;
+            }
+
+            if (_rewardsCache.TryGetValue(taskId, out var cached))
+                return cached;
+
+            string line = BuildRewardsLine(taskId);
+            _rewardsCache[taskId] = line;
+            return line;
+        }
+
+        private static string BuildRewardsLine(string taskId)
+        {
+            if (!EftDataManager.TaskData.TryGetValue(taskId, out var te))
+                return string.Empty;
+
+            var parts = new List<string>(8);
+            if (te.Experience > 0)
+                parts.Add($"{te.Experience:N0} XP");
+
+            var fr = te.FinishRewards;
+            if (fr?.TraderStanding is { } standings)
+            {
+                foreach (var s in standings)
+                    if (s.Trader is { } tr && s.Standing != 0)
+                        parts.Add($"{tr.Name} {(s.Standing > 0 ? "+" : "")}{s.Standing:0.00}");
+            }
+            if (fr?.Items is { } items)
+            {
+                foreach (var ri in items)
+                {
+                    if (ri.Item is null) continue;
+                    string n = ri.Item.Name;
+                    if (n.Equals("Roubles", StringComparison.OrdinalIgnoreCase))
+                        parts.Add($"₽{ri.Count:N0}");
+                    else if (n.Equals("Dollars", StringComparison.OrdinalIgnoreCase))
+                        parts.Add($"${ri.Count:N0}");
+                    else if (n.Equals("Euros", StringComparison.OrdinalIgnoreCase))
+                        parts.Add($"€{ri.Count:N0}");
+                    else
+                        parts.Add(ri.Count > 1 ? $"{ri.Item.ShortName} ×{ri.Count}" : ri.Item.ShortName);
+                }
+            }
+
+            string line = parts.Count > 0 ? "Rewards: " + string.Join("  ·  ", parts) : string.Empty;
+
+            if (fr?.OfferUnlock is { Count: > 0 } offers)
+            {
+                var unlocks = new List<string>(offers.Count);
+                foreach (var o in offers)
+                {
+                    if (o.Item is null) continue;
+                    unlocks.Add(o.Trader is { } t ? $"{o.Item.ShortName} @ {t.Name} LL{o.Level}" : o.Item.ShortName);
+                }
+                if (unlocks.Count > 0)
+                    line += (line.Length > 0 ? "\n" : "") + "Unlocks purchase: " + string.Join(", ", unlocks);
+            }
+
+            return line;
+        }
+
         private static void OpenUrl(string url)
         {
             try
@@ -442,6 +518,15 @@ namespace eft_dma_radar.Silk.UI.Panels
                         ? $"Lv {quest.MinPlayerLevel}"
                         : $"{meta}  ·  Lv {quest.MinPlayerLevel}";
                 ImGui.TextColored(ColGrey, meta);
+            }
+
+            // Rewards line: XP, trader rep, money/items, unlocked trader offers.
+            var rewards = GetRewardsLine(quest.TaskId);
+            if (rewards.Length > 0)
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, ColGrey);
+                ImGui.TextWrapped(rewards);
+                ImGui.PopStyleColor();
             }
 
             foreach (var o in quest.Objectives)

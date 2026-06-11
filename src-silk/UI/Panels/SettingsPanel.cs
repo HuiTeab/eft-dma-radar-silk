@@ -2,6 +2,7 @@
 // Licensed under the PolyForm Noncommercial License 1.0.0.
 // See LICENSE in the repository root for details.
 
+using eft_dma_radar.Silk.UI.Presets;
 using ImGuiNET;
 
 namespace eft_dma_radar.Silk.UI.Panels
@@ -9,6 +10,9 @@ namespace eft_dma_radar.Silk.UI.Panels
     internal static partial class SettingsPanel
     {
         private static SilkConfig Config => SilkProgram.Config;
+
+        /// <summary>Live filter for the cross-tab settings search box. Empty = normal tab view.</summary>
+        private static string _search = string.Empty;
 
         /// <summary>
         /// Settings categories shown in the left nav. The order here drives the visible order.
@@ -19,6 +23,7 @@ namespace eft_dma_radar.Silk.UI.Panels
             ("G", "General",     DrawGeneralTab),
             ("R", "Presets",     DrawPresetsTab),
             ("P", "Players",     DrawPlayersTab),
+            ("T", "Teammates",   DrawTeammatesTab),
             ("B", "Boss Guards", DrawGuardsTab),
             ("E", "ESP",         DrawEspTab),
             ("M", "Map",         DrawMapTab),
@@ -80,10 +85,17 @@ namespace eft_dma_radar.Silk.UI.Panels
             using (var scope = PanelWindow.Begin("\u2699 Settings", ref isOpen, new Vector2(720, 640)))
             {
                 IsOpen = isOpen;
+                if (!isOpen)
+                    _search = string.Empty; // don't greet the next open with stale results
                 if (!scope.Visible)
                     return;
 
-                DrawCategoryShell();
+                DrawSearchBar();
+
+                if (!string.IsNullOrWhiteSpace(_search))
+                    DrawSearchResults();
+                else
+                    DrawCategoryShell();
 
                 // Config auto-saves via SilkConfig.MarkDirty + FlushIfDirty —
                 // no "Save" button needed. A small footer hint reinforces this.
@@ -91,7 +103,131 @@ namespace eft_dma_radar.Silk.UI.Panels
                 ImGui.Separator();
                 ImGui.Spacing();
                 ImGui.TextColored(UITheme.AccentGreen, "\u2713 Changes auto-saved");
+
+                // Surface the category letter shortcuts (see HandleCategoryShortcuts).
+                string hint = "Letter key: jump tab";
+                float hintW = ImGui.CalcTextSize(hint).X;
+                float hintX = ImGui.GetWindowWidth() - hintW - ImGui.GetStyle().WindowPadding.X;
+                if (hintX > ImGui.GetCursorPosX())
+                {
+                    ImGui.SameLine(hintX);
+                    ImGui.TextDisabled(hint);
+                }
             }
+        }
+
+        /// <summary>
+        /// Cross-tab search box. Filters the preset toggle registry (the bulk of the
+        /// radar's on/off settings) plus category names, so "where was that toggle?"
+        /// is one keystroke instead of a tab hunt.
+        /// </summary>
+        private static void DrawSearchBar()
+        {
+            float clearW = 60f * Config.UIScale;
+            ImGui.SetNextItemWidth(string.IsNullOrEmpty(_search)
+                ? -1f
+                : ImGui.GetContentRegionAvail().X - clearW - ImGui.GetStyle().ItemSpacing.X);
+            ImGui.InputTextWithHint("##settings-search", "Search settings\u2026", ref _search, 96);
+
+            if (!string.IsNullOrEmpty(_search))
+            {
+                ImGui.SameLine();
+                if (ImGui.Button("Clear", new Vector2(clearW, 0)))
+                    _search = string.Empty;
+            }
+            ImGui.Spacing();
+        }
+
+        private static void DrawSearchResults()
+        {
+            // Same footer reservation as the category shell.
+            float footerH = ImGui.GetFrameHeightWithSpacing() + 8f;
+            float contentH = ImGui.GetContentRegionAvail().Y - footerH;
+            if (contentH < 100f) contentH = 100f;
+
+            if (ImGui.BeginChild("##settings-search-results", new Vector2(0, contentH), ImGuiChildFlags.Borders))
+            {
+                string q = _search.Trim();
+                int hits = 0;
+
+                // Matching categories \u2014 quick jump buttons.
+                bool anyCategory = false;
+                for (int i = 0; i < _categories.Length; i++)
+                {
+                    var (_, label, _) = _categories[i];
+                    if (!label.Contains(q, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    if (!anyCategory)
+                    {
+                        UIControls.Section("Tabs");
+                        anyCategory = true;
+                    }
+                    if (ImGui.Button($"Open: {label}##searchcat{i}"))
+                    {
+                        _activeCategory = i;
+                        _search = string.Empty;
+                    }
+                    hits++;
+                }
+
+                // Matching toggles \u2014 live, flippable right here.
+                string? lastGroup = null;
+                foreach (var t in Presets.PresetManager.Toggles)
+                {
+                    if (!t.Label.Contains(q, StringComparison.OrdinalIgnoreCase)
+                        && !t.Group.Contains(q, StringComparison.OrdinalIgnoreCase)
+                        && !t.Tooltip.Contains(q, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (t.Group != lastGroup)
+                    {
+                        UIControls.Section(t.Group);
+                        lastGroup = t.Group;
+                    }
+
+                    bool v = t.GetCfg(Config);
+                    if (UIControls.ToggleRow($"{t.Label}  ({t.Group})", ref v, t.Tooltip))
+                    {
+                        t.SetCfg(Config, v);
+                        Config.MarkDirty();
+                    }
+                    hits++;
+                }
+
+                // Matching integer settings (FPS caps etc.).
+                lastGroup = null;
+                foreach (var s in Presets.PresetManager.Values)
+                {
+                    if (!s.Label.Contains(q, StringComparison.OrdinalIgnoreCase)
+                        && !s.Group.Contains(q, StringComparison.OrdinalIgnoreCase)
+                        && !s.Tooltip.Contains(q, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (s.Group != lastGroup)
+                    {
+                        UIControls.Section(s.Group);
+                        lastGroup = s.Group;
+                    }
+
+                    int v = s.GetCfg(Config);
+                    if (UIControls.Stepper($"{s.Label}  ({s.Group})", ref v, s.Min, s.Max, tooltip: s.Tooltip))
+                    {
+                        s.SetCfg(Config, v);
+                        Config.MarkDirty();
+                    }
+                    hits++;
+                }
+
+                if (hits == 0)
+                {
+                    ImGui.Spacing();
+                    ImGui.TextColored(UITheme.Grey, $"No matches for \"{q}\".");
+                }
+
+                ImGui.Spacing();
+                ImGui.TextDisabled("Searches radar toggles and tab names. Sliders, colors and lists live in their tabs.");
+            }
+            ImGui.EndChild();
         }
 
         private static void DrawCategoryShell()
@@ -130,6 +266,11 @@ namespace eft_dma_radar.Silk.UI.Panels
                     if (ImGui.Button($"  {glyph}   {label}##cat{i}", new Vector2(-1, rowH)))
                         _activeCategory = i;
                     ImGui.PopStyleVar();
+
+                    // The glyph doubles as a keyboard shortcut while Settings is open —
+                    // not guessable when it doesn't match the label (R = Presets), so say it.
+                    if (ImGui.IsItemHovered())
+                        ImGui.SetTooltip($"Shortcut: press {glyph}");
 
                     ImGui.PopStyleColor(3);
                 }

@@ -87,6 +87,9 @@ namespace eft_dma_radar.Silk.DMA
         /// <summary>Manual player watchlist — persists user-tagged players across sessions.</summary>
         public static PlayerWatchlist PlayerWatchlist { get; } = new();
 
+        /// <summary>Persistent manual teammates — marked via Shift+click, applied each raid.</summary>
+        public static TeammateList Teammates { get; } = new();
+
         public static LocalGameWorld? Game { get; private set; }
         public static string? MapID => Game?.MapID;
         public static RegisteredPlayers? Players => Game?.RegisteredPlayers;

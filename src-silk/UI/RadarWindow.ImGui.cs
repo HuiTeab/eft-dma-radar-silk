@@ -57,15 +57,8 @@ namespace eft_dma_radar.Silk.UI
         {
             var io = ImGui.GetIO();
 
-            // Ctrl+K opens the command palette from anywhere.
-            if (!CommandPalette.IsOpen && io.KeyCtrl && ImGui.IsKeyPressed(ImGuiKey.K, false))
-            {
-                CommandPalette.Open();
-                return;
-            }
-
-            // Suppress letter/number shortcuts while typing or when a modal owns input.
-            if (io.WantTextInput || CommandPalette.IsOpen)
+            // Suppress letter/number shortcuts while typing in a search/text field.
+            if (io.WantTextInput)
                 return;
 
             // Don't hijack modified key combos (Ctrl+S "save", Alt-menu, etc.).
@@ -227,8 +220,8 @@ namespace eft_dma_radar.Silk.UI
 
             ImGui.Separator();
 
-            if (ImGui.MenuItem("Command Palette", "Ctrl+K"))
-                Shell.CommandPalette.Open();
+            if (ImGui.MenuItem("Show Welcome Tour"))
+                FirstRunTour.Open();
 
             if (ImGui.MenuItem("Close All", "Esc"))
             {
@@ -769,12 +762,6 @@ namespace eft_dma_radar.Silk.UI
 
             // Clears the one-shot resnap flag set by the "Reset Side Panels" hotkey.
             RightDock.EndFrame();
-
-            // Command palette draws last so it overlays everything.
-            // (Ctrl+K open / Esc close is handled in HandleLocalShortcuts so it
-            // works regardless of which child window has focus.)
-            CommandPalette.Update();
-            CommandPalette.Draw();
 
             // Toasts on top of everything else, but below the radial overlay.
             ToastManager.Draw();

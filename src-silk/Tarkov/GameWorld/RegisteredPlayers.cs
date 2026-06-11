@@ -691,7 +691,10 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
                         if (entry.Player.ProfileId is not null && entry.Player.AccountId is null)
                         {
                             if (DogtagCache.TryApplyIdentity(entry.Player) && entry.Player.AccountId is not null)
+                            {
                                 CheckWatchlist(entry.Player);
+                                Player.Plugins.TeammatesManager.Apply(entry.Player);
+                            }
                         }
                     }
 

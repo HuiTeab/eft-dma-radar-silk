@@ -12,15 +12,25 @@ namespace eft_dma_radar.Silk.Misc.Data.TarkovMarket
     /// </summary>
     internal static class TarkovMarketJob
     {
+        /// <summary>
+        /// Version of the data.json shape. Bump when the query gains fields the UI
+        /// depends on — EftDataManager treats an older cached file as stale and
+        /// re-fetches immediately instead of waiting out the 6h interval.
+        /// v2: buyPrice/buyVendor on items, finishRewards on tasks, crafts list.
+        /// </summary>
+        public const int SchemaVersion = 2;
+
         public static async Task<string> GetUpdatedMarketDataAsync()
         {
             var data = await TarkovDevCore.QueryTarkovDevAsync();
 
             var result = new TarkovMarketData
             {
+                SchemaVersion = SchemaVersion,
                 Items = ParseItems(data),
                 Tasks = data.Data.Tasks,
                 Maps = ParseMaps(data),
+                Crafts = data.Data.Crafts,
                 Traders = data.Data.Traders
                     .Where(t => !string.IsNullOrEmpty(t.Id) && !string.IsNullOrEmpty(t.Name))
                     .Select(t => new OutgoingTrader { Id = t.Id, Name = t.Name })
@@ -51,7 +61,9 @@ namespace eft_dma_radar.Silk.Misc.Data.TarkovMarket
                     IconLink = item.IconLink,
                     IconLinkFallback = item.IconLinkFallback,
                     ImageLink = item.ImageLink,
-                    Caliber = item.Properties?.Caliber
+                    Caliber = item.Properties?.Caliber,
+                    BuyPrice = item.CheapestBuyPrice,
+                    BuyVendor = item.CheapestBuyVendor
                 });
             }
 
@@ -112,6 +124,9 @@ namespace eft_dma_radar.Silk.Misc.Data.TarkovMarket
 
         private sealed class TarkovMarketData
         {
+            [JsonPropertyName("schemaVersion")]
+            public int SchemaVersion { get; set; }
+
             [JsonPropertyName("items")]
             public List<OutgoingItem> Items { get; set; } = [];
 
@@ -120,6 +135,9 @@ namespace eft_dma_radar.Silk.Misc.Data.TarkovMarket
 
             [JsonPropertyName("maps")]
             public List<OutgoingMap> Maps { get; set; } = [];
+
+            [JsonPropertyName("crafts")]
+            public List<CraftElement> Crafts { get; set; } = [];
 
             [JsonPropertyName("traders")]
             public List<OutgoingTrader> Traders { get; set; } = [];
@@ -171,6 +189,12 @@ namespace eft_dma_radar.Silk.Misc.Data.TarkovMarket
 
             [JsonPropertyName("caliber")]
             public string? Caliber { get; set; }
+
+            [JsonPropertyName("buyPrice")]
+            public long BuyPrice { get; set; }
+
+            [JsonPropertyName("buyVendor")]
+            public string BuyVendor { get; set; } = string.Empty;
         }
 
         private sealed class OutgoingMap

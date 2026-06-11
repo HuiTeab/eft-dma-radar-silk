@@ -475,11 +475,12 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
             // Inventory
             C("Inventory", [F("Equipment"), F("QuestRaidItems"), F("QuestStashItems"), F("Stash")]),
 
-            // Stash
-            C("Stash", [F("_grid", "Grids")]),
-
-            // CompoundItem → Stash (Slots from CompoundItem, same output Stash)
-            C("CompoundItem", [F("Slots")], cs: "Stash"),
+            // Stash — StashClass derives from CompoundItem, so its grid array is the
+            // inherited CompoundItem.Grids field (exactly like Equipment below), NOT a
+            // "_grid" field. Resolving "_grid" produced a valid-but-wrong offset, so the
+            // offline stash chain read 0 items even though the stash object itself
+            // resolved fine (the independent area/upgrade chain was unaffected).
+            C("CompoundItem", [F("Grids"), F("Slots")], cs: "Stash"),
 
             // CompoundItem → Equipment
             C("CompoundItem", [F("Grids"), F("Slots")], cs: "Equipment"),

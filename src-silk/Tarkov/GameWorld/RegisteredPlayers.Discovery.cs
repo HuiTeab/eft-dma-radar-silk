@@ -102,7 +102,10 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
                 // this only works for players whose AccountId is already resolved at
                 // discovery time — re-checked later when AccountId becomes available).
                 if (!isLocal && player.IsHuman)
+                {
                     CheckWatchlist(player);
+                    Player.Plugins.TeammatesManager.Apply(player);
+                }
 
                 // Stagger initial gear/hands refresh times so newly discovered players
                 // don't all fire in the same registration tick (thundering herd).

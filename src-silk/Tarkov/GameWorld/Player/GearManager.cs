@@ -517,6 +517,10 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player
                 // Try to resolve name immediately from the corpse dogtag cache
                 DogtagCache.TryApplyIdentity(player);
 
+                // Re-apply saved-teammate status now that an id is available (a live ally's
+                // ProfileId resolves here, not at discovery).
+                Plugins.TeammatesManager.Apply(player);
+
                 return true;
             }
             catch

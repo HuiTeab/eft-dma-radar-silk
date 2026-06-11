@@ -3,7 +3,9 @@
 // See LICENSE in the repository root for details.
 
 using eft_dma_radar.Silk.Tarkov.GameWorld.Btr;
+using eft_dma_radar.Silk.Tarkov.GameWorld.Player.Plugins;
 using eft_dma_radar.Silk.UI.Panels;
+using eft_dma_radar.Silk.UI.Shell;
 using eft_dma_radar.Silk.UI.Widgets;
 using ImGuiNET;
 using Silk.NET.Input;
@@ -29,6 +31,37 @@ namespace eft_dma_radar.Silk.UI
             if (button == MouseButton.Right)
             {
                 HandleMarkerRightClick(pos);
+                return;
+            }
+
+            // Shift + Left-click on a hovered human player toggles a persistent teammate mark.
+            // Takes priority over panning; ignored when the cursor is over an ImGui window.
+            if (button == MouseButton.Left && ImGui.GetIO().KeyShift
+                && !ImGui.GetIO().WantCaptureMouse
+                && _mouseOverPlayer is { } hovered
+                && !hovered.IsLocalPlayer && hovered.IsHuman)
+            {
+                if (!hovered.IsAlive)
+                {
+                    ToastManager.Warn($"Can't mark '{hovered.Name}' — player is dead");
+                    return;
+                }
+
+                // Every outcome gets a toast — the dot recolor alone is easy to miss mid-raid.
+                if (TeammatesManager.Toggle(hovered))
+                {
+                    bool hasId = !string.IsNullOrEmpty(hovered.AccountId) || !string.IsNullOrEmpty(hovered.ProfileId);
+                    if (!hasId)
+                        ToastManager.Info($"Teammate marked: {hovered.Name} (saves once their ID resolves)");
+                    else if (!Config.TeammatesEnabled)
+                        ToastManager.Warn($"Teammate marked: {hovered.Name} — auto-apply is OFF (Settings → Teammates)");
+                    else
+                        ToastManager.Success($"Teammate marked: {hovered.Name}");
+                }
+                else
+                {
+                    ToastManager.Info($"Teammate unmarked: {hovered.Name}");
+                }
                 return;
             }
 

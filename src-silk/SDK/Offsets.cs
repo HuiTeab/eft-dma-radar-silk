@@ -668,7 +668,13 @@ namespace SDK
         }
         public readonly partial struct Stash
         {
-            public static uint Grids = 0x98;
+            // StashClass derives from CompoundItem, so its Grids[] lives at the
+            // inherited CompoundItem.Grids offset (0x78) — confirmed by IL2CPP dumps,
+            // where every CompoundItem Grids array sits at 0x78. The previous 0x98
+            // pointed at an unrelated item-component field, so the offline (GOM) stash
+            // chain resolved a valid-but-wrong pointer and read 0 stash items even
+            // though the area/upgrade chain (which is independent) worked fine.
+            public static uint Grids = 0x78;
             public static uint Slots = 0x80;
         }
         public readonly partial struct Equipment

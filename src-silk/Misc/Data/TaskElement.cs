@@ -52,6 +52,55 @@ namespace eft_dma_radar.Silk.Misc.Data
         [JsonPropertyName("taskRequirements")]
         public List<TaskRequirementElement>? TaskRequirements { get; set; }
 
+        /// <summary>What completing the task grants — items, trader rep, offer/trader unlocks.</summary>
+        [JsonPropertyName("finishRewards")]
+        public FinishRewardsElement? FinishRewards { get; set; }
+
+        internal sealed class FinishRewardsElement
+        {
+            [JsonPropertyName("items")]
+            public List<RewardItemElement>? Items { get; set; }
+
+            [JsonPropertyName("traderStanding")]
+            public List<TraderStandingElement>? TraderStanding { get; set; }
+
+            [JsonPropertyName("offerUnlock")]
+            public List<OfferUnlockElement>? OfferUnlock { get; set; }
+
+            [JsonPropertyName("traderUnlock")]
+            public List<TraderRef>? TraderUnlock { get; set; }
+        }
+
+        internal sealed class RewardItemElement
+        {
+            [JsonPropertyName("item")]
+            public ItemRef? Item { get; set; }
+
+            [JsonPropertyName("count")]
+            public int Count { get; set; }
+        }
+
+        internal sealed class TraderStandingElement
+        {
+            [JsonPropertyName("trader")]
+            public TraderRef? Trader { get; set; }
+
+            [JsonPropertyName("standing")]
+            public float Standing { get; set; }
+        }
+
+        internal sealed class OfferUnlockElement
+        {
+            [JsonPropertyName("trader")]
+            public TraderRef? Trader { get; set; }
+
+            [JsonPropertyName("level")]
+            public int Level { get; set; }
+
+            [JsonPropertyName("item")]
+            public ItemRef? Item { get; set; }
+        }
+
         internal sealed class TraderRef
         {
             [JsonPropertyName("name")]

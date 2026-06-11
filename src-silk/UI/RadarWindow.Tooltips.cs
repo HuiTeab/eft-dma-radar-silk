@@ -186,6 +186,15 @@ namespace eft_dma_radar.Silk.UI
                     _tooltipLines.Add(($"  {kvp.Value.Short}{price}", SKPaints.TooltipText));
                 }
             }
+
+            // Teach the Shift+click teammate mark right where it's used
+            // (same pattern as the marker tooltip's "Right-click to edit").
+            if (player.IsHuman && !player.IsLocalPlayer && player.IsAlive)
+            {
+                _tooltipLines.Add((player.IsManualTeammate
+                    ? "Shift+click to unmark teammate"
+                    : "Shift+click to mark as teammate", SKPaints.TooltipLabel));
+            }
         }
 
         private static void BuildLootTooltipLines(LootItem loot, Player localPlayer)
