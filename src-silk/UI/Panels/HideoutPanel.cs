@@ -862,6 +862,35 @@ namespace eft_dma_radar.Silk.UI.Panels
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Empty-state for the Crafts section when craft data hasn't downloaded.
+        /// The toolbar Refresh only does a DMA hideout read, so this gives the user
+        /// the actual control — trigger the tarkov.dev download and show its status.
+        /// </summary>
+        private static void DrawCraftDataMissing()
+        {
+            switch (EftDataManager.RefreshStatus)
+            {
+                case EftDataManager.RefreshState.Refreshing:
+                    ImGui.TextColored(ColOrange, "Downloading craft & price data from tarkov.dev…");
+                    return;
+                case EftDataManager.RefreshState.Failed:
+                    ImGui.TextColored(ColRed, "Craft data download failed.");
+                    ImGui.TextDisabled(EftDataManager.RefreshError);
+                    break;
+                default:
+                    ImGui.TextDisabled("Craft data isn't downloaded yet. It normally arrives automatically\n" +
+                                       "from tarkov.dev shortly after start (needs internet).");
+                    break;
+            }
+
+            ImGui.Spacing();
+            if (ImGui.Button("Download now"))
+                EftDataManager.TriggerRefresh();
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Fetch the latest item prices, crafts and quest data from tarkov.dev.");
+        }
+
         private static void DrawCraftsSection()
         {
             ImGui.Spacing();
@@ -873,8 +902,7 @@ namespace eft_dma_radar.Silk.UI.Panels
             var crafts = EftDataManager.Crafts;
             if (crafts.Count == 0)
             {
-                ImGui.TextDisabled("Craft data not downloaded yet — it arrives with the automatic\n" +
-                                   "tarkov.dev refresh shortly after start (needs internet).");
+                DrawCraftDataMissing();
                 return;
             }
 
@@ -1028,11 +1056,11 @@ namespace eft_dma_radar.Silk.UI.Panels
                     string nm = DisplayNameFor(r.Item);
                     if (firstReward)
                     {
-                        output = r.Count > 1 ? $"{nm} ×{r.Count}" : nm;
+                        output = r.Count > 1 ? $"{nm} ×{FormatCount(r.Count)}" : nm;
                         firstReward = false;
                     }
                     if (EftDataManager.AllItems.TryGetValue(r.Item.Id, out var rmi))
-                        value += (long)rmi.BestPrice * r.Count;
+                        value += (long)Math.Round(rmi.BestPrice * r.Count);
                 }
                 if (firstReward)
                     continue; // no usable reward item
@@ -1063,12 +1091,13 @@ namespace eft_dma_radar.Silk.UI.Panels
                         if (unit <= 0)
                         {
                             costIncomplete = true;
-                            tip.Add($"{nm} ×{req.Count} — price unknown");
+                            tip.Add($"{nm} ×{FormatCount(req.Count)} — price unknown");
                         }
                         else
                         {
-                            cost += unit * req.Count;
-                            tip.Add($"{nm} ×{req.Count} — {HideoutManager.FormatPrice(unit * req.Count)} ({vendor})");
+                            long lineCost = (long)Math.Round(unit * req.Count);
+                            cost += lineCost;
+                            tip.Add($"{nm} ×{FormatCount(req.Count)} — {HideoutManager.FormatPrice(lineCost)} ({vendor})");
                         }
                     }
                 }
@@ -1097,6 +1126,9 @@ namespace eft_dma_radar.Silk.UI.Panels
                 return mi.ShortName;
             return string.IsNullOrEmpty(item.ShortName) ? item.Name : item.ShortName;
         }
+
+        /// <summary>"2" for whole counts, "0.66" for fractional resource drains.</summary>
+        private static string FormatCount(double count) => count.ToString("0.##");
 
         private static void ApplyCraftSort()
         {

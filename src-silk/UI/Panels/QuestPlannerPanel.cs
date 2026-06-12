@@ -276,7 +276,7 @@ namespace eft_dma_radar.Silk.UI.Panels
                     else if (n.Equals("Euros", StringComparison.OrdinalIgnoreCase))
                         parts.Add($"€{ri.Count:N0}");
                     else
-                        parts.Add(ri.Count > 1 ? $"{ri.Item.ShortName} ×{ri.Count}" : ri.Item.ShortName);
+                        parts.Add(ri.Count > 1 ? $"{ri.Item.ShortName} ×{ri.Count:0.##}" : ri.Item.ShortName);
                 }
             }
 

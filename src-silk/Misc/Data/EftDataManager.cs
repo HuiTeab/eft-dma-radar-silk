@@ -45,6 +45,67 @@ namespace eft_dma_radar.Silk.Misc.Data
         /// <summary>Hideout craft recipes from tarkov.dev. Empty until a v2+ data refresh lands.</summary>
         public static IReadOnlyList<CraftElement> Crafts { get; private set; } = [];
 
+        /// <summary>State of the tarkov.dev data download, for UI status display.</summary>
+        public enum RefreshState { Idle, Refreshing, Succeeded, Failed }
+
+        /// <summary>Current download state (see <see cref="TriggerRefresh"/>).</summary>
+        public static RefreshState RefreshStatus { get; private set; } = RefreshState.Idle;
+
+        /// <summary>Last download error message, when <see cref="RefreshStatus"/> is Failed.</summary>
+        public static string RefreshError { get; private set; } = string.Empty;
+
+        // Guards against overlapping refreshes (auto + manual, or double-click).
+        private static int _refreshing;
+
+        /// <summary>
+        /// Force a tarkov.dev data download now, off the 6h/auto schedule. Used by the
+        /// Hideout panel's "Download now" action when crafts/prices are missing. No-op
+        /// (returns false) if a refresh is already running. Result lands in
+        /// <see cref="RefreshStatus"/> / the static data properties.
+        /// </summary>
+        public static bool TriggerRefresh()
+        {
+            if (Interlocked.CompareExchange(ref _refreshing, 1, 0) != 0)
+                return false; // already in flight
+
+            RefreshStatus = RefreshState.Refreshing;
+            RefreshError = string.Empty;
+            _ = Task.Run(RefreshFromApiAsync);
+            return true;
+        }
+
+        private static async Task RefreshFromApiAsync()
+        {
+            try
+            {
+                Log.WriteLine("[EftDataManager] Fetching market data from tarkov.dev...");
+                string json = await TarkovMarketJob.GetUpdatedMarketDataAsync();
+                if (string.IsNullOrEmpty(json))
+                    throw new InvalidOperationException("Empty response from tarkov.dev.");
+
+                var updated = JsonSerializer.Deserialize<DataRoot>(json, _jsonOpts);
+                if (updated?.Items is not { Count: > 0 })
+                    throw new InvalidOperationException("Downloaded data had no items.");
+
+                // Only persist after we've confirmed it parses, so a bad payload
+                // can't poison the disk cache.
+                await File.WriteAllTextAsync(DataFilePath, json);
+                ApplyData(updated);
+                RefreshStatus = RefreshState.Succeeded;
+                Log.WriteLine($"[EftDataManager] Market data updated ({updated.Items.Count} items, {Crafts.Count} crafts).");
+            }
+            catch (Exception ex)
+            {
+                RefreshStatus = RefreshState.Failed;
+                RefreshError = ex.Message;
+                Log.WriteLine($"[EftDataManager] Market data update failed: {ex.Message}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _refreshing, 0);
+            }
+        }
+
         /// <summary>
         /// Loads the item database at startup.
         /// Priority: disk cache → embedded resource.
@@ -113,26 +174,8 @@ namespace eft_dma_radar.Silk.Misc.Data
             {
                 _ = Task.Run(async () =>
                 {
-                    try
-                    {
-                        await Task.Delay(3000); // let the app finish starting
-                        Log.WriteLine("[EftDataManager] Starting background market data update...");
-                        string json = await TarkovMarketJob.GetUpdatedMarketDataAsync();
-                        if (!string.IsNullOrEmpty(json))
-                        {
-                            await File.WriteAllTextAsync(DataFilePath, json);
-                            var updated = JsonSerializer.Deserialize<DataRoot>(json, _jsonOpts);
-                            if (updated?.Items is { Count: > 0 })
-                            {
-                                ApplyData(updated);
-                                Log.WriteLine("[EftDataManager] Background market data update applied.");
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.WriteLine($"[EftDataManager] Background update failed: {ex.Message}");
-                    }
+                    await Task.Delay(3000); // let the app finish starting
+                    TriggerRefresh();
                 });
             }
         }

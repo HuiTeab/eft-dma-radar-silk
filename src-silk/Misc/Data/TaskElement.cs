@@ -76,8 +76,10 @@ namespace eft_dma_radar.Silk.Misc.Data
             [JsonPropertyName("item")]
             public ItemRef? Item { get; set; }
 
+            /// <summary>GraphQL Float (ContainedItem.count) — keep double so a fractional
+            /// value can't break deserialization of the whole payload.</summary>
             [JsonPropertyName("count")]
-            public int Count { get; set; }
+            public double Count { get; set; }
         }
 
         internal sealed class TraderStandingElement

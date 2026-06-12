@@ -51,7 +51,12 @@ namespace eft_dma_radar.Silk.UI
         /// kernel via DMA), these fire on the operator's machine whenever the
         /// radar window has OS focus — independent of which sub-window was
         /// last clicked. We bail out while a text input is active so typing
-        /// in the command palette / search fields doesn't trigger them.
+        /// in search / name fields doesn't trigger them.
+        ///
+        /// This is the single source of truth for local shortcuts — the
+        /// Silk.NET <c>OnKeyDown</c> handler only keeps F8 (debug). They used
+        /// to overlap on the panel letters, double-firing and cancelling out
+        /// whenever the map background had focus.
         /// </summary>
         private static void HandleLocalShortcuts()
         {
@@ -89,10 +94,33 @@ namespace eft_dma_radar.Silk.UI
             else if (ImGui.IsKeyPressed(ImGuiKey.T, false)) LootWidget.IsOpen = !LootWidget.IsOpen;
             else if (ImGui.IsKeyPressed(ImGuiKey.A, false)) AimviewWidget.IsOpen = !AimviewWidget.IsOpen;
             else if (ImGui.IsKeyPressed(ImGuiKey.E, false)) EspWindow.Toggle();
+            // Map controls — moved here from the Silk.NET key handler so they
+            // can't double-fire (see OnKeyDown) and keep working while a panel
+            // has focus, same as the panel letters above.
+            else if (ImGui.IsKeyPressed(ImGuiKey.F, false))
+            {
+                _freeMode = !_freeMode;
+                if (!_freeMode)
+                    _mapPanPosition = default;
+            }
+            else if (ImGui.IsKeyPressed(ImGuiKey.B, false))
+            {
+                Config.SetBattleMode(!Config.BattleMode);
+            }
 
             // Tab hides/shows the sidebar.
             if (ImGui.IsKeyPressed(ImGuiKey.Tab, false))
                 Sidebar.ToggleVisibility();
+
+            // Esc closes every floating panel — same list as the menu's "Close All"
+            // (CloseAllPanels, defined below). Skipped while the welcome tour or an
+            // open popup owns the key.
+            if (ImGui.IsKeyPressed(ImGuiKey.Escape, false)
+                && !FirstRunTour.IsOpen
+                && !ImGui.IsPopupOpen(string.Empty, ImGuiPopupFlags.AnyPopup))
+            {
+                CloseAllPanels();
+            }
         }
 
         // ── Top command-bar pill colors (matches bottom status chip language) ─
@@ -224,22 +252,29 @@ namespace eft_dma_radar.Silk.UI
                 FirstRunTour.Open();
 
             if (ImGui.MenuItem("Close All", "Esc"))
-            {
-                SettingsPanel.IsOpen = false;
-                LootFiltersPanel.IsOpen = false;
-                HotkeyManagerPanel.IsOpen = false;
-                HideoutPanel.IsOpen = false;
-                QuestPanel.IsOpen = false;
-                QuestPlannerPanel.IsOpen = false;
-                KillfeedPanel.IsOpen = false;
-                PlayerHistoryPanel.IsOpen = false;
-                PlayerWatchlistPanel.IsOpen = false;
-                PlayerInfoWidget.IsOpen = false;
-                LootWidget.IsOpen = false;
-                AimviewWidget.IsOpen = false;
-            }
+                CloseAllPanels();
 
             ImGui.EndPopup();
+        }
+
+        /// <summary>
+        /// Closes every toggleable panel/widget. Single source of truth shared by the
+        /// "Close All" menu item and the Esc shortcut so the two never drift apart.
+        /// </summary>
+        private static void CloseAllPanels()
+        {
+            SettingsPanel.IsOpen = false;
+            LootFiltersPanel.IsOpen = false;
+            HotkeyManagerPanel.IsOpen = false;
+            HideoutPanel.IsOpen = false;
+            QuestPanel.IsOpen = false;
+            QuestPlannerPanel.IsOpen = false;
+            KillfeedPanel.IsOpen = false;
+            PlayerHistoryPanel.IsOpen = false;
+            PlayerWatchlistPanel.IsOpen = false;
+            PlayerInfoWidget.IsOpen = false;
+            LootWidget.IsOpen = false;
+            AimviewWidget.IsOpen = false;
         }
 
         private static void DrawMainMenuBar()

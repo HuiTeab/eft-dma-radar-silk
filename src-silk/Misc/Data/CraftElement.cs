@@ -45,8 +45,13 @@ namespace eft_dma_radar.Silk.Misc.Data
             [JsonPropertyName("item")]
             public ItemRef? Item { get; set; }
 
+            /// <summary>
+            /// GraphQL Float — fractional for drained resources, e.g. the Water
+            /// Collector's purified-water craft uses 0.66 of a Water filter.
+            /// An int here breaks deserialization of the whole payload.
+            /// </summary>
             [JsonPropertyName("count")]
-            public int Count { get; set; }
+            public double Count { get; set; }
 
             [JsonPropertyName("attributes")]
             public List<AttributeElement>? Attributes { get; set; }

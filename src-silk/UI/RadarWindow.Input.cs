@@ -268,64 +268,19 @@ namespace eft_dma_radar.Silk.UI
 
         private static void OnKeyDown(IKeyboard keyboard, Key key, int scancode)
         {
-            // F8 is a global debug toggle — always fires regardless of ImGui focus
+            // F8 is a global debug toggle — always fires regardless of ImGui focus.
+            // Every other local shortcut lives in HandleLocalShortcuts (ImGui-driven):
+            // this handler used to duplicate the panel letters, so when the map
+            // background had focus both handlers fired and the toggle cancelled
+            // itself out — keep exactly one source of truth.
             if (key == Key.F8)
             {
                 Log.EnableDebugLogging = !Log.EnableDebugLogging;
                 Log.WriteLine($"[RadarWindow] Debug logging {(Log.EnableDebugLogging ? "ON" : "OFF")}");
                 if (Log.EnableDebugLogging)
                     Memory.Game?.DumpAll();
-                return;
             }
-
-            // Don't handle shortcuts when ImGui text inputs have focus
-            if (ImGui.GetIO().WantCaptureKeyboard)
-                return;
-
-            switch (key)
-            {
-                case Key.F:
-                    _freeMode = !_freeMode;
-                    if (!_freeMode)
-                        _mapPanPosition = default;
-                    break;
-                case Key.B:
-                    Config.SetBattleMode(!Config.BattleMode);
-                    break;
-                case Key.S:
-                    SettingsPanel.IsOpen = !SettingsPanel.IsOpen;
-                    break;
-                case Key.L:
-                    LootFiltersPanel.IsOpen = !LootFiltersPanel.IsOpen;
-                    break;
-                case Key.P:
-                    PlayerInfoWidget.IsOpen = !PlayerInfoWidget.IsOpen;
-                    break;
-                case Key.T:
-                    LootWidget.IsOpen = !LootWidget.IsOpen;
-                    break;
-                case Key.A:
-                    AimviewWidget.IsOpen = !AimviewWidget.IsOpen;
-                    break;
-                case Key.H:
-                    HideoutPanel.IsOpen = !HideoutPanel.IsOpen;
-                    break;
-                case Key.Q:
-                    QuestPanel.IsOpen = !QuestPanel.IsOpen;
-                    break;
-                case Key.Escape:
-                    SettingsPanel.IsOpen = false;
-                    LootFiltersPanel.IsOpen = false;
-                    HotkeyManagerPanel.IsOpen = false;
-                    HideoutPanel.IsOpen = false;
-                    QuestPanel.IsOpen = false;
-                    QuestPlannerPanel.IsOpen = false;
-                    PlayerInfoWidget.IsOpen = false;
-                    LootWidget.IsOpen = false;
-                    AimviewWidget.IsOpen = false;
-                    break;
-                    }
-                }
+        }
 
         #endregion
 
