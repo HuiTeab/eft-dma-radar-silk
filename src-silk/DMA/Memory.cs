@@ -220,6 +220,12 @@ namespace eft_dma_radar.Silk.DMA
 
                 _vmm = new Vmm([.. args]);
 
+                // Route VMM/LeechCore internal diagnostics (FPGA/TLP errors, failed device
+                // reads, refresh issues) into our own Log + notification path. By default VMM
+                // only emits Warning/Critical here — low-volume, high-signal — so this surfaces
+                // real DMA-link problems without flooding. (VMMDLL_LogCallback, MemProcFS v5.17+.)
+                unsafe { _vmm.LogCallback(&OnVmmLog); }
+
                 // Benchmark BEFORE registering auto-refresh so the PCIe bus is idle
                 // during measurement. RegisterAutoRefresh drives continuous TLP traffic
                 // that would starve concurrent LeechCore.Read calls.
@@ -1032,6 +1038,10 @@ namespace eft_dma_radar.Silk.DMA
             // Without this the background task is cut off mid-write and the file is truncated.
             MatchDumper.Drain(TimeSpan.FromSeconds(120));
 
+            // Unregister the log callback before disposing so VMM cannot call back into a
+            // torn-down managed runtime during handle teardown.
+            try { unsafe { _vmm?.LogCallback(null); } } catch { }
+
             _vmm?.Dispose();
             _vmm = null;
             Log.WriteLine("[Memory] Closed.");
@@ -1041,6 +1051,50 @@ namespace eft_dma_radar.Silk.DMA
         {
             try { ShowNotification?.Invoke(msg, level); }
             catch { }
+        }
+
+        /// <summary>
+        /// Logging callback invoked by VMM/LeechCore (registered via <see cref="Vmm.LogCallback"/>).
+        /// Fires from internal VMM threads — must be thread-safe and must never let an exception
+        /// cross the native boundary. Maps the VMM log level onto the radar's <see cref="Log"/>:
+        /// Critical→Error (+ rate-limited user notification), Warning→Warning, everything else→Debug.
+        /// </summary>
+        /// <remarks>
+        /// VMM levels: 1=Critical 2=Warning 3=Info 4=Verbose 5=Debug 6=Trace.
+        /// <paramref name="uszModule"/> / <paramref name="uszMessage"/> are UTF-8 (LPCSTR) pointers.
+        /// </remarks>
+        [UnmanagedCallersOnly]
+        private static void OnVmmLog(IntPtr hVMM, uint mid, IntPtr uszModule, uint level, IntPtr uszMessage)
+        {
+            try
+            {
+                string? msg = Marshal.PtrToStringUTF8(uszMessage);
+                if (string.IsNullOrEmpty(msg))
+                    return;
+                string? module = Marshal.PtrToStringUTF8(uszModule);
+                string prefix = string.IsNullOrEmpty(module) ? "[VMM]" : $"[VMM:{module}]";
+
+                switch (level)
+                {
+                    case 1: // Critical — a stopping device/link error
+                        Log.Write(AppLogLevel.Error, $"{prefix} {msg}");
+                        // Surface to the user, but rate-limit so a continuously failing DMA
+                        // link can't flood the notification queue.
+                        if (Log.ShouldEmitRateLimited(AppLogLevel.Error, "vmm_crit_notify", TimeSpan.FromSeconds(10)))
+                            Notify($"DMA device error: {msg}", NotificationLevel.Error);
+                        break;
+                    case 2: // Warning — severe but non-fatal (e.g. retried read)
+                        Log.Write(AppLogLevel.Warning, $"{prefix} {msg}");
+                        break;
+                    default: // Info/Verbose/Debug/Trace — only surfaced when debug logging is on
+                        Log.Write(AppLogLevel.Debug, $"{prefix} {msg}");
+                        break;
+                }
+            }
+            catch
+            {
+                // Never allow an exception to propagate across the native callback boundary.
+            }
         }
 
         #endregion

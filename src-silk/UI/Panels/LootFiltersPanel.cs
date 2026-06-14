@@ -405,14 +405,13 @@ namespace eft_dma_radar.Silk.UI.Panels
             if (!ImGui.CollapsingHeader("Wishlist Settings"))
                 return;
 
-            bool showWL = Config.LootShowWishlist;
-            if (ImGui.Checkbox("Show wishlisted items", ref showWL))
-            {
-                Config.LootShowWishlist = showWL;
-                Config.MarkDirty();
-            }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Always show wishlisted items, bypassing price/category filters.");
+            // The wishlist visibility master toggle lives in the "Always Show"
+            // section above (the Wishlist row). Duplicating the same
+            // Config.LootShowWishlist control here made flipping one silently move
+            // the other, so this section now only configures the in-game wishlist
+            // source and groups.
+            ImGui.TextDisabled("Visibility toggle: ★ Wishlist, under \"Always Show\" above.");
+            ImGui.Spacing();
 
             bool useIngame = Config.LootUseIngameWishlist;
             if (ImGui.Checkbox("Use in-game wishlist", ref useIngame))
@@ -767,16 +766,11 @@ namespace eft_dma_radar.Silk.UI.Panels
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip("Reset all loot filter settings to defaults");
 
+            // No manual save button \u2014 every control here calls Config.MarkDirty() /
+            // LootFilter.SaveFilterData() on change, matching the Settings panel's
+            // auto-save model. The hint just reassures it's already persisted.
             ImGui.SameLine();
-
-            if (ImGui.Button("\u2713 Save Config"))
-            {
-                Config.Save();
-                LootFilter.SaveFilterData();
-                RadarWindow.NotifyConfigSaved();
-            }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Save current settings to disk");
+            ImGui.TextColored(UITheme.AccentGreen, "\u2713 Changes auto-saved");
         }
     }
 }

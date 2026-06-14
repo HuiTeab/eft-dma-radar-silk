@@ -12,12 +12,16 @@ namespace eft_dma_radar.Silk.UI.Panels
         {
             ImGui.Spacing();
 
+            // Bindings live in config and can be reviewed/edited offline; only live
+            // capture + execution need the DMA link. Show a hint instead of blanking
+            // the whole tab so keys can be set up before the game is connected.
             if (!InputManager.IsReady)
             {
-                ImGui.TextColored(new Vector4(1f, 0.6f, 0.2f, 1f),
-                    "\u26a0 Input manager not initialized.");
-                ImGui.TextWrapped("Hotkeys require an active DMA connection. They will activate once a raid starts.");
-                return;
+                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.72f, 0.28f, 1f));
+                ImGui.TextWrapped("\u26a0 Not connected to the game yet \u2014 hotkeys activate automatically once it connects. " +
+                    "You can still review and edit your bindings below.");
+                ImGui.PopStyleColor();
+                ImGui.Spacing();
             }
 
             ImGui.TextWrapped("Manage hotkeys in the dedicated Hotkeys panel.");

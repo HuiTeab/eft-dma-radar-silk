@@ -42,12 +42,18 @@ namespace eft_dma_radar.Silk.UI.Panels
 
             ImGui.Spacing();
 
+            // Not connected yet? Don't blank the panel \u2014 bindings live in config and
+            // can be reviewed, removed, and added offline (the Add section falls back
+            // to a key dropdown). Only live key-press capture needs the DMA link;
+            // bindings activate automatically once the game connects.
             if (!InputManager.IsReady)
             {
-                ImGui.TextColored(new Vector4(1f, 0.6f, 0.2f, 1f),
-                    "\u26a0 Input manager not initialized.");
-                ImGui.TextWrapped("Hotkeys require an active DMA connection. They will activate once a raid starts.");
-                return;
+                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.72f, 0.28f, 1f));
+                ImGui.TextWrapped("\u26a0 Not connected to the game yet \u2014 live key-press capture is unavailable. " +
+                    "You can still review, remove, and add bindings (pick a key from the list); " +
+                    "they activate automatically when the game connects.");
+                ImGui.PopStyleColor();
+                ImGui.Spacing();
             }
 
             DrawAddSection();
@@ -112,42 +118,60 @@ namespace eft_dma_radar.Silk.UI.Panels
                     ImGui.SetTooltip(def.Tooltip);
             }
 
-            // 2. Key capture button
+            // 2. Key chooser — live capture when the game is connected, otherwise a
+            //    name dropdown so bindings can still be set up offline.
             ImGui.SameLine();
-            string keyLabel = _isCapturing
-                ? "[ Press a key... ]"
-                : _capturedVk > 0 ? VK.GetName(_capturedVk) : "(None)";
-
-            bool wasCapturing = _isCapturing;
-            if (wasCapturing)
+            if (InputManager.IsReady)
             {
-                ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.8f, 0.5f, 0.1f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.9f, 0.6f, 0.2f, 1f));
-                ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.7f, 0.4f, 0.1f, 1f));
-            }
+                string keyLabel = _isCapturing
+                    ? "[ Press a key... ]"
+                    : _capturedVk > 0 ? VK.GetName(_capturedVk) : "(None)";
 
-            if (ImGui.Button(keyLabel, new Vector2(130, 0)))
+                bool wasCapturing = _isCapturing;
+                if (wasCapturing)
+                {
+                    ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.8f, 0.5f, 0.1f, 1f));
+                    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.9f, 0.6f, 0.2f, 1f));
+                    ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.7f, 0.4f, 0.1f, 1f));
+                }
+
+                if (ImGui.Button(keyLabel, new Vector2(130, 0)))
+                {
+                    if (_isCapturing)
+                    {
+                        // Cancel capture
+                        _isCapturing = false;
+                        HotkeyManager.CapturingActionId = null;
+                    }
+                    else
+                    {
+                        // Start capture
+                        _isCapturing = true;
+                        _capturedVk = -1;
+                        HotkeyManager.CapturingActionId = "_panel_capture";
+                    }
+                }
+
+                if (wasCapturing)
+                    ImGui.PopStyleColor(3);
+
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip(_isCapturing ? "Press a key to bind, or Escape to cancel" : "Click to capture a key");
+            }
+            else
             {
-                if (_isCapturing)
-                {
-                    // Cancel capture
-                    _isCapturing = false;
-                    HotkeyManager.CapturingActionId = null;
-                }
-                else
-                {
-                    // Start capture
-                    _isCapturing = true;
-                    _capturedVk = -1;
-                    HotkeyManager.CapturingActionId = "_panel_capture";
-                }
+                // Offline fallback: choose a key by name (no live keystate over DMA).
+                _isCapturing = false;
+                if (_pickableNames.Length == 0)
+                    BuildPickableKeys();
+
+                int sel = Array.IndexOf(_pickableVks, _capturedVk);
+                ImGui.SetNextItemWidth(130);
+                if (ImGui.Combo("##KeyPick", ref sel, _pickableNames, _pickableNames.Length))
+                    _capturedVk = (sel >= 0 && sel < _pickableVks.Length) ? _pickableVks[sel] : -1;
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("Pick a key by name. Live key-press capture needs the game connection.");
             }
-
-            if (wasCapturing)
-                ImGui.PopStyleColor(3);
-
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip(_isCapturing ? "Press a key to bind, or Escape to cancel" : "Click to capture a key");
 
             // 3. Mode radio buttons
             ImGui.RadioButton("Toggle", ref _selectedMode, 0);
@@ -276,6 +300,29 @@ namespace eft_dma_radar.Silk.UI.Panels
             // Clamp index if list shrank
             if (_selectedActionIndex >= _unboundNames.Length)
                 _selectedActionIndex = _unboundNames.Length - 1;
+        }
+
+        // ── Offline key picker ──────────────────────────────────────────────
+        // Curated list of bindable keys for the dropdown shown when there's no
+        // live DMA connection to capture a keypress. Built once on first use.
+        private static int[] _pickableVks = [];
+        private static string[] _pickableNames = [];
+
+        private static void BuildPickableKeys()
+        {
+            var vks = new List<int>(96) { VK.XBUTTON1, VK.XBUTTON2 };
+            for (int v = VK.F1; v <= VK.F12; v++) vks.Add(v);
+            for (int v = VK.A; v <= VK.Z; v++) vks.Add(v);
+            for (int v = VK.D0; v <= VK.D9; v++) vks.Add(v);
+            for (int v = VK.NUMPAD0; v <= VK.NUMPAD9; v++) vks.Add(v);
+            vks.AddRange([VK.SPACE, VK.TAB, VK.INSERT, VK.DELETE, VK.HOME, VK.END,
+                VK.PRIOR, VK.NEXT, VK.UP, VK.DOWN, VK.LEFT, VK.RIGHT]);
+
+            _pickableVks = [.. vks];
+            var names = new string[vks.Count];
+            for (int i = 0; i < vks.Count; i++)
+                names[i] = VK.GetName(vks[i]);
+            _pickableNames = names;
         }
     }
 }

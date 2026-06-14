@@ -1464,6 +1464,17 @@ internal static partial class Vmmi
         [MarshalAs(UnmanagedType.LPStr)] string uszFormat,
         [MarshalAs(UnmanagedType.LPUTF8Str)] string uszTextToLog);
 
+    // Optional logging callback (added in MemProcFS v5.17). Receives every VMM/LeechCore
+    // log message matching the current verbosity. Native signature:
+    //   VOID pfnCB(VMM_HANDLE hVMM, VMMDLL_MODULE_ID MID, LPCSTR uszModule,
+    //              VMMDLL_LOGLEVEL dwLogLevel, LPCSTR uszLogMessage)
+    // uszModule/uszLogMessage are UTF-8 (LPCSTR) — passed as IntPtr and marshalled by the callee.
+    [LibraryImport("vmm.dll", EntryPoint = "VMMDLL_LogCallback")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static unsafe partial bool VMMDLL_LogCallback(
+        Vmm.Handle hVMM,
+        delegate* unmanaged<IntPtr, uint, IntPtr, uint, IntPtr, void> pfnCB);
+
     // Misc
 
     [LibraryImport("vmm.dll", EntryPoint = "VMMDLL_MemCallback")]

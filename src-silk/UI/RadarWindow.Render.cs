@@ -98,7 +98,33 @@ namespace eft_dma_radar.Silk.UI
                 }
                 else if (!Ready)
                 {
-                    DrawStatusMessage(canvas, "Starting Up", scale, animated: true);
+                    // Distinguish the pre-game phases so a working DMA that's simply
+                    // waiting for the game to launch doesn't look like a hung/broken
+                    // connection (the previous single "Starting Up" was ambiguous).
+                    var memState = Memory.State;
+                    string startupMsg = memState switch
+                    {
+                        MemoryState.WaitingForProcess => "Waiting for Escape from Tarkov",
+                        MemoryState.Initializing      => "Starting Up",
+                        _                             => "Connecting to DMA",
+                    };
+                    DrawStatusMessage(canvas, startupMsg, scale, animated: true);
+
+                    // The init phases finish in seconds on a healthy rig. WaitingForProcess
+                    // can last indefinitely (game closed), so only nudge toward
+                    // troubleshooting when we're stuck connecting/initializing the link.
+                    if (memState == MemoryState.WaitingForProcess)
+                    {
+                        _initStuckSw.Reset();
+                    }
+                    else
+                    {
+                        if (!_initStuckSw.IsRunning)
+                            _initStuckSw.Restart();
+                        if (_initStuckSw.Elapsed.TotalSeconds > 12)
+                            DrawStatusSubMessage(canvas,
+                                "If this persists, check your DMA device connection and -device setting.", scale);
+                    }
                 }
                 else if (!InRaid)
                 {
@@ -668,6 +694,19 @@ namespace eft_dma_radar.Silk.UI
             float y = bounds.Height / 2f;
 
             canvas.DrawText(_cachedStatusComposite, x, y, SKPaints.FontRegular48, SKPaints.TextRadarStatus);
+        }
+
+        /// <summary>
+        /// Draws a smaller, dimmer secondary line centered just below the main
+        /// status message — used for the stuck-startup troubleshooting hint.
+        /// </summary>
+        private static void DrawStatusSubMessage(SKCanvas canvas, string message, float scale)
+        {
+            var bounds = new SKRect(0, 0, _window.Size.X / scale, _window.Size.Y / scale);
+            float textWidth = SKPaints.FontRegular18.MeasureText(message);
+            float x = (bounds.Width - textWidth) / 2f;
+            float y = bounds.Height / 2f + 40f; // below the 48px main line
+            canvas.DrawText(message, x, y, SKPaints.FontRegular18, SKPaints.TextRadarStatusSub);
         }
 
         /// <summary>

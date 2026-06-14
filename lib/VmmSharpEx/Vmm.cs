@@ -3429,6 +3429,28 @@ public sealed partial class Vmm : IDisposable
     }
 
     /// <summary>
+    /// Register or unregister an optional logging callback (MemProcFS v5.17+).
+    /// The callback receives every VMM/LeechCore log message matching the current
+    /// verbosity — including device-level diagnostics (FPGA/TLP errors, failed reads).
+    /// Pass <see langword="null"/> to clear a previously registered callback.
+    /// </summary>
+    /// <remarks>
+    /// The callback must be a static method marked with <see cref="UnmanagedCallersOnlyAttribute"/>
+    /// returning void with signature:
+    /// <c>(IntPtr hVMM, uint MID, IntPtr uszModule, uint dwLogLevel, IntPtr uszLogMessage)</c>.
+    /// The <c>uszModule</c> and <c>uszLogMessage</c> arguments are UTF-8 (LPCSTR) pointers —
+    /// marshal them with <see cref="System.Runtime.InteropServices.Marshal.PtrToStringUTF8(IntPtr)"/>.
+    /// The callback fires from internal VMM threads, so the handler must be thread-safe and must
+    /// never let an exception cross the native boundary.
+    /// </remarks>
+    /// <param name="pfnCB">Callback function pointer to register, or null to unregister.</param>
+    /// <returns><see langword="true"/> on success, otherwise <see langword="false"/>.</returns>
+    public unsafe bool LogCallback(delegate* unmanaged<IntPtr, uint, IntPtr, uint, IntPtr, void> pfnCB)
+    {
+        return Vmmi.VMMDLL_LogCallback(_handle, pfnCB);
+    }
+
+    /// <summary>
     /// Throw an exception if memory writing is disabled.
     /// </summary>
     /// <exception cref="VmmException">Thrown when memory writing is disabled.</exception>

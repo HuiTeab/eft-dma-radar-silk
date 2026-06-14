@@ -86,8 +86,8 @@ namespace eft_dma_radar.Silk.UI.Shell
         ];
 
         /// <summary>
-        /// Open the full tour from the start — first run, or "Show Welcome Tour"
-        /// from the command palette.
+        /// Open the full tour from the start — first run, or via the
+        /// "Show Welcome Tour" button in Settings → General.
         /// </summary>
         public static void Open()
         {

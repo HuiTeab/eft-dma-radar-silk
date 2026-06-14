@@ -150,7 +150,7 @@ namespace eft_dma_radar.Silk.UI.Panels
                 if (ImGui.Button("\u2728 Show Welcome Tour"))
                     eft_dma_radar.Silk.UI.Shell.FirstRunTour.Open();
                 if (ImGui.IsItemHovered())
-                    ImGui.SetTooltip("Replay the first-run UX tour (sidebar, status bar, presets, palette).");
+                    ImGui.SetTooltip("Replay the first-run UX tour (sidebar, status bar, map interactions, presets).");
             }
 
             ImGui.Spacing();

@@ -148,6 +148,12 @@ namespace eft_dma_radar.Silk.UI
         private static int _cachedStatusOrder = -1;
         private static string _cachedStatusComposite = "";
 
+        // Tracks how long we've been stuck in the DMA-init phases (NotStarted /
+        // Initializing) so a hung/misconfigured device surfaces a troubleshooting
+        // hint. A healthy rig clears these in a second or two; WaitingForProcess is
+        // excluded since it legitimately lasts as long as the game is closed.
+        private static readonly Stopwatch _initStuckSw = new();
+
         // ── Cached ImGui Vector4 colors (avoid per-frame struct allocation) ─
         private static readonly Vector4 ColorMenuBarRight = new(0.55f, 0.60f, 0.65f, 1.0f);
         private static readonly Vector4 ColorStatusBarBg = new(0.10f, 0.10f, 0.12f, 0.92f);
