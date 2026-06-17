@@ -432,8 +432,8 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
             // ItemHandsController
             C("ItemHandsController", [F("_item", "Item")]),
 
-            // FirearmController
-            C("FirearmController", [F("Fireport"), F("COI", "TotalCenterOfImpact"), F("WeaponLn")]),
+            // FirearmController (+ get_WeaponDirection method RVA for the silent-aim code-patch)
+            C("FirearmController", [F("Fireport"), F("COI", "TotalCenterOfImpact"), F("WeaponLn"), M("get_WeaponDirection")]),
 
             // ClientFirearmController (fields from ClientFirearmController + inherited FirearmController)
             C("FirearmController", [F("WeaponLn")], cs: "ClientFirearmController"),
@@ -545,6 +545,18 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.IL2CPP
                 F("<Chambers>k__BackingField", "Chambers"),
                 F("_magSlotCache"),
             ], cs: "LootItemWeapon"),
+
+            // AmmoTemplate → AmmoTemplate (silent-aim ballistics: muzzle velocity + G1 drag inputs)
+            C("AmmoTemplate", [
+                F("InitialSpeed"),
+                F("BallisticCoeficient"),
+                F("BulletMassGram"),
+                F("BulletDiameterMilimeters"),
+            ]),
+
+            // Weapon/attachment muzzle-velocity % modifiers (silent-aim ballistics refinement)
+            C("WeaponTemplate", [F("Velocity")]),
+            C("ModTemplate", [F("Velocity")]),
 
             // LevelSettings
             C("LevelSettings", [F("AmbientMode"), F("EquatorColor"), F("GroundColor")]),

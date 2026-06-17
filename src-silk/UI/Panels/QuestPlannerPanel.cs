@@ -12,15 +12,17 @@ using ImGuiNET;
 namespace eft_dma_radar.Silk.UI.Panels
 {
     /// <summary>
-    /// Quest Planner Panel — lobby-only view that recommends which map(s) to run next
+    /// Quest Planner view — lobby-only recommendation of which map(s) to run next
     /// based on the player's active quests, unlock dependencies, and per-map bring lists.
     /// Consumes <see cref="QuestPlannerWorker.Current"/>.
+    ///
+    /// Embedded in <see cref="QuestHubPanel"/> (the "Map Planner" tab); it no longer
+    /// owns its own window. The Kappa filter and selected-quest pin live in the hub
+    /// header because they are shared with the By-Trader view.
     /// </summary>
     internal static class QuestPlannerPanel
     {
         private static SilkConfig Config => SilkProgram.Config;
-
-        public static bool IsOpen { get; set; }
 
         // Collapsed sections
         private static readonly HashSet<string> _collapsedMaps = new(StringComparer.OrdinalIgnoreCase);
@@ -47,13 +49,9 @@ namespace eft_dma_radar.Silk.UI.Panels
         private static ref readonly Vector4 ColGold    => ref UITheme.Gold;
         private static ref readonly Vector4 ColGrey    => ref UITheme.Grey;
 
-        public static void Draw()
+        /// <summary>Draws the "Map Planner" view body inside the shared <see cref="QuestHubPanel"/> window.</summary>
+        public static void DrawEmbedded()
         {
-            bool isOpen = IsOpen;
-            using var scope = PanelWindow.Begin("\u2741 Quest Planner", ref isOpen, new Vector2(560, 640));
-            IsOpen = isOpen;
-            if (!scope.Visible) return;
-
             DrawToolbar();
             ImGui.Separator();
 
@@ -95,18 +93,8 @@ namespace eft_dma_radar.Silk.UI.Panels
         {
             var cfg = Config;
 
-            // Row 1 — progression toggles ("main quest" = Kappa and/or Lightkeeper).
-            bool kappa = cfg.QuestKappaFilter;
-            if (ImGui.Checkbox("Kappa", ref kappa))
-            {
-                cfg.QuestKappaFilter = kappa;
-                cfg.MarkDirty();
-                QuestPlannerWorker.ForceRecompute();
-            }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Only quests required for the Kappa container.");
-
-            ImGui.SameLine();
+            // Row 1 — progression toggles. Kappa lives in the hub header (shared); the
+            // planner-specific Lightkeeper line stays here.
             bool lk = cfg.QuestLightkeeperFilter;
             if (ImGui.Checkbox("Lightkeeper", ref lk))
             {
@@ -170,21 +158,8 @@ namespace eft_dma_radar.Silk.UI.Panels
                 QuestPlannerWorker.ForceRecompute();
             }
 
-            // Selected-quest banner — this is what the radar pins (shared with the Quest panel).
-            if (!string.IsNullOrEmpty(cfg.QuestSelectedId))
-            {
-                ImGui.TextColored(ColCyan, "◉");
-                ImGui.SameLine();
-                ImGui.TextColored(ColKappa, GetSelectedQuestName(cfg.QuestSelectedId));
-                ImGui.SameLine();
-                if (ImGui.SmallButton("Clear##selQuest"))
-                {
-                    cfg.QuestSelectedId = "";
-                    cfg.MarkDirty();
-                }
-                if (ImGui.IsItemHovered())
-                    ImGui.SetTooltip("This quest's zones & items are pinned to the radar.\nRight-click a quest to change.");
-            }
+            // The selected-quest banner (radar pin, shared with the By-Trader view)
+            // is drawn once by QuestHubPanel's header.
         }
 
         // ── Toolbar helpers ──────────────────────────────────────────────────
@@ -215,11 +190,6 @@ namespace eft_dma_radar.Silk.UI.Panels
                 }
             }
         }
-
-        private static string GetSelectedQuestName(string questId)
-            => EftDataManager.TaskData.TryGetValue(questId, out var t) && !string.IsNullOrEmpty(t.Name)
-                ? t.Name
-                : questId;
 
         // ── Rewards (tarkov.dev finishRewards) ───────────────────────────────
 

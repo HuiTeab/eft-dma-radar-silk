@@ -41,7 +41,7 @@ namespace eft_dma_radar.Silk.UI.Shell
             int n = 0;
             if (Widgets.PlayerInfoWidget.IsOpen) n++;
             if (Widgets.LootWidget.IsOpen) n++;
-            if (Panels.QuestPanel.IsOpen) n++;
+            if (Panels.QuestHubPanel.IsOpen) n++;
             return n;
         }
 

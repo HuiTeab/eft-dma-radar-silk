@@ -433,7 +433,7 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player
         internal static int SerializedBoneCount => _allBones.Length;
 
         /// <summary>
-        /// Gets the world position of a specific bone, or null if not available.
+        /// Gets the last-scattered world position of a specific bone, or null if not available.
         /// </summary>
         internal Vector3? GetBonePosition(Bones bone)
         {
@@ -444,6 +444,37 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player
                     return entry.WorldPosition;
             }
             return null;
+        }
+
+        /// <summary>
+        /// Reads a bone's world position FRESH from memory (re-reads the TRS hierarchy now) rather than
+        /// returning the last-scattered value. Used by silent aim so a moving target's aim point isn't
+        /// a few frames stale. Falls back to <see langword="false"/> if the bone isn't ready/readable.
+        /// </summary>
+        internal bool TryGetBonePositionLive(Bones bone, out Vector3 position)
+        {
+            position = default;
+            if (!_boneIndex.TryGetValue(bone, out int idx))
+                return false;
+            var entry = _bones[idx];
+            if (!entry.Ready || entry.CachedIndices is null || !entry.VerticesAddr.IsValidVirtualAddress())
+                return false;
+            try
+            {
+                int count = entry.TransformIndex + 1;
+                var verts = Memory.ReadArray<TrsX>(entry.VerticesAddr, count, false);
+                if (verts.Length < count)
+                    return false;
+                var wp = TrsX.ComputeWorldPosition(verts, entry.CachedIndices, entry.TransformIndex);
+                if (!float.IsFinite(wp.X) || !float.IsFinite(wp.Y) || !float.IsFinite(wp.Z))
+                    return false;
+                position = wp;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>

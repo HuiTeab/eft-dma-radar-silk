@@ -363,22 +363,22 @@ namespace eft_dma_radar.Silk.Tarkov.Unity.PhysX
                 var pl = planes[i];
                 var nrm = new Vector3(pl.X, pl.Y, pl.Z);
                 float dPlane = pl.W;
-                float denom = Vector3.Dot(nrm, ld);
-                // num is rearranged from "n·(o + t·d) + dPlane = 0":
+                float denominator = Vector3.Dot(nrm, ld);
+                // Numerator is rearranged from "n·(o + t·d) + dPlane = 0":
                 //   t·(n·d) = -(dPlane + n·o)
-                float num = -(dPlane + Vector3.Dot(nrm, lo));
+                float numerator = -(dPlane + Vector3.Dot(nrm, lo));
 
-                if (MathF.Abs(denom) < EPS)
+                if (MathF.Abs(denominator) < EPS)
                 {
                     // Ray parallel to this plane. If origin is on the outside
-                    // half-space (num < 0), the ray never enters the
+                    // half-space (numerator < 0), the ray never enters the
                     // polyhedron; otherwise this plane imposes no constraint.
-                    if (num < 0f) return false;
+                    if (numerator < 0f) return false;
                     continue;
                 }
 
-                float t = num / denom;
-                if (denom < 0f)
+                float t = numerator / denominator;
+                if (denominator < 0f)
                 {
                     // Entry plane (ray moving into the half-space) — raises tEnter.
                     if (t > tEnter) tEnter = t;

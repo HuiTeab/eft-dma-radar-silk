@@ -23,7 +23,7 @@ namespace eft_dma_radar.Silk.UI.Shell
         /// Bump when adding steps so existing users get a "What's new" pass.
         /// Tag the new steps with <c>AddedIn = TourVersion</c>.
         /// </summary>
-        private const int TourVersion = 2;
+        private const int TourVersion = 3;
 
         public static bool IsOpen { get; private set; }
 
@@ -75,6 +75,16 @@ namespace eft_dma_radar.Silk.UI.Shell
                 "                         wherever you drop them.",
                 "Hover any dot on the radar for a detail tooltip.",
                 AddedIn: 2),
+            new(
+                "Quests — one panel, two views",
+                "The Quests panel [4] now hosts both quest tools behind a tab toggle:\n\n" +
+                "  By Trader    — your live quest list grouped by trader, with objective\n" +
+                "                 progress, keys and items. Works in raid.\n" +
+                "  Map Planner  — lobby-only: which map to run next, what to bring,\n" +
+                "                 and what each quest unlocks.\n\n" +
+                "The Kappa filter and the radar-pinned quest are shared across both tabs.",
+                "The old separate \"Quest Planner\" is now the Map Planner tab.",
+                AddedIn: 3),
             new(
                 "Presets — switch a radar config in one click",
                 "The preset combo in the top menu bar bundles every radar-layer + " +

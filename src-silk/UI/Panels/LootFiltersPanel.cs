@@ -326,23 +326,21 @@ namespace eft_dma_radar.Silk.UI.Panels
             ImGui.Spacing();
 
             bool hlQuest = Config.QuestHighlightLootItems;
-            if (ImGui.Checkbox("\u2731 Highlight Quest-Required Loot", ref hlQuest))
+            if (UIControls.ToggleRow("\u2731 Highlight Quest-Required Loot", ref hlQuest,
+                "Mark loose items on the radar that are needed for an active quest (Find in Raid, hand-overs, etc.)."))
             {
                 Config.QuestHighlightLootItems = hlQuest;
                 Config.MarkDirty();
             }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Mark loose items on the radar that are needed for an active quest (Find in Raid, hand-overs, etc.).");
 
             ImGui.Indent(16);
             bool showQI = Config.LootShowQuestItems;
-            if (ImGui.Checkbox("\u2755 Show Static Quest Items", ref showQI))
+            if (UIControls.ToggleRow("\u2755 Show Static Quest Items", ref showQI,
+                "Always show items flagged as quest-only by the game (pocket watches,\nJaeger's letter, etc.) regardless of price or active-quest filter."))
             {
                 Config.LootShowQuestItems = showQI;
                 Config.MarkDirty();
             }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Always show items flagged as quest-only by the game (pocket watches,\nJaeger's letter, etc.) regardless of price or active-quest filter.");
             ImGui.Unindent(16);
 
             ImGui.Spacing();
@@ -359,35 +357,32 @@ namespace eft_dma_radar.Silk.UI.Panels
             ImGui.Spacing();
 
             bool hlAll = Config.HideoutHighlightLootItems;
-            if (ImGui.Checkbox("🏠 Highlight Upgrade-Needed Loot", ref hlAll))
+            if (UIControls.ToggleRow("🏠 Highlight Upgrade-Needed Loot", ref hlAll,
+                "Highlight any loose item still needed for a pending hideout upgrade.\nUses cached planner data — active even during raids."))
             {
                 Config.HideoutHighlightLootItems = hlAll;
                 Config.MarkDirty();
             }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Highlight any loose item still needed for a pending hideout upgrade.\nUses cached planner data — active even during raids.");
 
             ImGui.Indent(16);
             bool hlFiR = Config.HideoutHighlightFiRItems;
-            if (ImGui.Checkbox("★ FiR Only Highlight", ref hlFiR))
+            if (UIControls.ToggleRow("★ FiR Only Highlight", ref hlFiR,
+                "Highlight items that must be Found-in-Raid.\nWorks independently — you can disable the general highlight and keep only FiR items marked."))
             {
                 Config.HideoutHighlightFiRItems = hlFiR;
                 Config.MarkDirty();
             }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Highlight items that must be Found-in-Raid.\nWorks independently — you can disable the general highlight and keep only FiR items marked.");
 
             bool hlCurrent = Config.HideoutHighlightCurrentOnly;
-            if (ImGui.Checkbox("⏳ Current Upgrades Only", ref hlCurrent))
+            if (UIControls.ToggleRow("⏳ Current Upgrades Only", ref hlCurrent,
+                "Only highlight items for upgrades you can do right now.\n" +
+                "Hides items only needed for stations still locked behind another\n" +
+                "requirement (area level, trader loyalty, skill, or quest).\n" +
+                "Turn off to also mark items for those future upgrades."))
             {
                 Config.HideoutHighlightCurrentOnly = hlCurrent;
                 Config.MarkDirty();
             }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Only highlight items for upgrades you can do right now.\n" +
-                    "Hides items only needed for stations still locked behind another\n" +
-                    "requirement (area level, trader loyalty, skill, or quest).\n" +
-                    "Turn off to also mark items for those future upgrades.");
             ImGui.Unindent(16);
 
             ImGui.Spacing();
@@ -414,13 +409,12 @@ namespace eft_dma_radar.Silk.UI.Panels
             ImGui.Spacing();
 
             bool useIngame = Config.LootUseIngameWishlist;
-            if (ImGui.Checkbox("Use in-game wishlist", ref useIngame))
+            if (UIControls.ToggleRow("Use in-game wishlist", ref useIngame,
+                "Include items you marked as favourites inside Tarkov itself\n(read live from the in-game WishlistManager)."))
             {
                 Config.LootUseIngameWishlist = useIngame;
                 Config.MarkDirty();
             }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Include items you marked as favourites inside Tarkov itself\n(read live from the in-game WishlistManager).");
 
             if (!Config.LootUseIngameWishlist)
                 ImGui.BeginDisabled();
@@ -528,6 +522,8 @@ namespace eft_dma_radar.Silk.UI.Panels
             ImGui.SetNextItemWidth(-1);
             if (ImGui.InputTextWithHint("##ItemSearch", "Search items to add...", ref _itemSearchText, 128))
                 _searchDirty = true;
+            if (_itemSearchText.Length == 1)
+                ImGui.TextDisabled("Type at least 2 characters to search.");
 
             // Perform search
             if (_searchDirty && _itemSearchText.Length >= 2)

@@ -61,35 +61,16 @@ namespace eft_dma_radar.Silk.UI.Panels
                 Config.MarkDirty();
             }
             if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Draw the killfeed overlay on the radar canvas.");
-
-            ImGui.SameLine();
-
-            int maxEntries = Config.KillFeedMaxEntries;
-            ImGui.SetNextItemWidth(60);
-            if (ImGui.InputInt("Max", ref maxEntries, 0))
-            {
-                Config.KillFeedMaxEntries = Math.Clamp(maxEntries, 1, 20);
-                Config.MarkDirty();
-            }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Maximum killfeed entries shown (1–20).");
-
-            ImGui.SameLine();
-
-            int ttl = Config.KillFeedTtlSeconds;
-            ImGui.SetNextItemWidth(60);
-            if (ImGui.InputInt("TTL (s)", ref ttl, 0))
-            {
-                Config.KillFeedTtlSeconds = Math.Clamp(ttl, 5, 600);
-                Config.MarkDirty();
-            }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Seconds before a killfeed entry expires.");
+                ImGui.SetTooltip("Draw the killfeed overlay on the radar canvas.\nMax entries + TTL live in Settings → Map → Killfeed Overlay.");
 
             ImGui.SameLine();
             if (ImGui.SmallButton("Clear"))
                 KillfeedManager.Reset();
+
+            // Max-entries + TTL are configured once in Settings → Map (they used to be
+            // duplicated here, which let the two drift out of sync).
+            ImGui.SameLine();
+            ImGui.TextDisabled("Entry count / TTL: Settings → Map");
         }
 
         private static void DrawTable(KillfeedEntry[] entries)

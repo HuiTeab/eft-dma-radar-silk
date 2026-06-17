@@ -158,6 +158,13 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player
         public bool IsError { get; set; }
 
         /// <summary>
+        /// Whether this player is the silent-aim target this tick. Set by
+        /// <c>SilentAim</c> on the chosen target and cleared on all others, so the
+        /// radar / aimview / ESP can highlight who's being aimed at.
+        /// </summary>
+        public bool IsAimbotLocked { get; set; }
+
+        /// <summary>
         /// Observed health status for non-local players.
         /// Derived from <c>ObservedHealthController.HealthStatus</c> bitmask.
         /// </summary>

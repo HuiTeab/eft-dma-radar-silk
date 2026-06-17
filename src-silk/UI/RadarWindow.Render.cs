@@ -104,16 +104,24 @@ namespace eft_dma_radar.Silk.UI
                     var memState = Memory.State;
                     string startupMsg = memState switch
                     {
+                        MemoryState.WaitingForDevice  => "Waiting for DMA device",
                         MemoryState.WaitingForProcess => "Waiting for Escape from Tarkov",
                         MemoryState.Initializing      => "Starting Up",
                         _                             => "Connecting to DMA",
                     };
                     DrawStatusMessage(canvas, startupMsg, scale, animated: true);
 
-                    // The init phases finish in seconds on a healthy rig. WaitingForProcess
-                    // can last indefinitely (game closed), so only nudge toward
-                    // troubleshooting when we're stuck connecting/initializing the link.
-                    if (memState == MemoryState.WaitingForProcess)
+                    // The init phases finish in seconds on a healthy rig. WaitingForDevice (card
+                    // powered off) and WaitingForProcess (game closed) can both last indefinitely,
+                    // so don't escalate those to the "stuck" nudge — only nudge when we're stuck
+                    // mid-connect/initialize. WaitingForDevice gets its own persistent hint.
+                    if (memState == MemoryState.WaitingForDevice)
+                    {
+                        _initStuckSw.Reset();
+                        DrawStatusSubMessage(canvas,
+                            "Power on your DMA card and check the -device setting.", scale);
+                    }
+                    else if (memState == MemoryState.WaitingForProcess)
                     {
                         _initStuckSw.Reset();
                     }

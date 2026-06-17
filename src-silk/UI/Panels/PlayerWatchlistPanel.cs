@@ -102,10 +102,35 @@ namespace eft_dma_radar.Silk.UI.Panels
             ImGui.SameLine();
             ImGui.TextColored(ColGrey, $"{watchlist.Count} entries");
             ImGui.SameLine();
+
+            ImGui.BeginDisabled(watchlist.Count == 0);
             if (ImGui.Button("Clear All"))
+                ImGui.OpenPopup("##confirm_clear_watchlist");
+            ImGui.EndDisabled();
+
+            // Hand-curated data (account IDs / reasons / tags) — confirm before wiping,
+            // matching the guard on the Teammates tab's "Clear all".
+            if (ImGui.BeginPopup("##confirm_clear_watchlist"))
             {
-                watchlist.Clear();
-                InvalidateCache();
+                ImGui.TextUnformatted($"Remove all {watchlist.Count} watchlist entr{(watchlist.Count == 1 ? "y" : "ies")}?");
+                ImGui.TextDisabled("This can't be undone.");
+                ImGui.Spacing();
+
+                ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.65f, 0.20f, 0.20f, 1f));
+                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.78f, 0.25f, 0.25f, 1f));
+                if (ImGui.Button("Remove all", new Vector2(100f, 0)))
+                {
+                    watchlist.Clear();
+                    InvalidateCache();
+                    ImGui.CloseCurrentPopup();
+                }
+                ImGui.PopStyleColor(2);
+
+                ImGui.SameLine();
+                if (ImGui.Button("Cancel", new Vector2(80f, 0)))
+                    ImGui.CloseCurrentPopup();
+
+                ImGui.EndPopup();
             }
         }
 
@@ -170,7 +195,7 @@ namespace eft_dma_radar.Silk.UI.Panels
 
                 // Added
                 ImGui.TableNextColumn();
-                ImGui.TextUnformatted(entry.AddedDate.ToString("MM/dd/yy"));
+                ImGui.TextUnformatted(FormatAdded(entry.AddedDate));
 
                 // Actions
                 ImGui.TableNextColumn();
@@ -217,6 +242,19 @@ namespace eft_dma_radar.Silk.UI.Panels
         {
             _cachedDisplay = null;
             _cachedSource = null;
+        }
+
+        /// <summary>Compact "when was this added" label — matches the Teammates tab format.</summary>
+        private static string FormatAdded(DateTime added)
+        {
+            int days = (DateTime.Now.Date - added.Date).Days;
+            return days switch
+            {
+                <= 0 => "today",
+                1 => "yesterday",
+                < 30 => $"{days}d ago",
+                _ => added.ToString("yyyy-MM-dd"),
+            };
         }
 
         private static void OpenPlayerProfile(string accountId)

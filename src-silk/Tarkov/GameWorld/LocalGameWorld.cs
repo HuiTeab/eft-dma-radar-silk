@@ -1071,61 +1071,65 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
             if (_localPlayerAddr == 0)
                 return;
 
-            for (int i = 0; i < 5; i++) // Re-attempt if read fails — 5 times
+            // Only end the raid on a SUCCESSFUL read that confirms it's over. A read that throws is
+            // a transient DMA failure (page-out, cache miss, a brief device hiccup) — counting those
+            // as "raid over" used to false-end live raids during error bursts. Genuine ends are also
+            // caught by LocalPlayerLost, so erring toward "keep going" here is safe.
+            for (int i = 0; i < 5; i++)
             {
                 try
                 {
                     if (IsRaidActive())
-                        return;
+                        return;        // confirmed still active
+                    throw new RaidEnded(); // confirmed over (read succeeded and says so)
                 }
-                catch { }
-                Thread.Sleep(10); // short delay between attempts
+                catch (RaidEnded)
+                {
+                    throw;
+                }
+                catch
+                {
+                    // Transient read failure — retry without counting it as a confirmation.
+                }
+                Thread.Sleep(10);
             }
 
-            // Definitively over.
-            throw new RaidEnded();
+            // Every attempt failed to read — treat as transient, not a raid end. The next tick retries.
         }
 
         /// <summary>
-        /// Checks if the current raid is active, and LocalPlayer is alive/active.
-        /// Mirrors WPF IsRaidActive() exactly.
+        /// Checks if the current raid is active and the LocalPlayer is still the MainPlayer.
+        /// Returns false only when a <em>successful</em> read shows the raid is over; transient read
+        /// failures are allowed to propagate so the caller can tell them apart from a genuine end.
         /// </summary>
         private bool IsRaidActive()
         {
-            try
-            {
-                // 1) MainPlayer sanity
-                var mainPlayer = Memory.ReadPtr(_base + Offsets.ClientLocalGameWorld.MainPlayer, false);
-                if (!mainPlayer.IsValidVirtualAddress())
-                    return false;
-
-                ArgumentOutOfRangeException.ThrowIfNotEqual(mainPlayer, _localPlayerAddr, nameof(mainPlayer));
-
-                // 2) Player count sanity
-                var rgtPlayersAddr = Memory.ReadPtr(_base + Offsets.ClientLocalGameWorld.RegisteredPlayers, false);
-                var count = Memory.ReadValue<int>(rgtPlayersAddr + 0x18, false);
-                if (count <= 0)
-                    return false;
-
-                // 3) Map transition detection — but not on every single call
-                if ((_mapCheckTick++ & 0x3F) == 0) // every 64 calls
-                {
-                    var currentMapId = ReadMapID(_base);
-                    if (!string.IsNullOrEmpty(currentMapId) &&
-                        !string.IsNullOrEmpty(MapID) &&
-                        !string.Equals(currentMapId, MapID, StringComparison.Ordinal))
-                    {
-                        Log.WriteLine($"[LocalGameWorld] Map changed: '{MapID}' → '{currentMapId}'. Ending raid.");
-                        return false;
-                    }
-                }
-
-                return true;
-            }
-            catch
-            {
+            // 1) MainPlayer sanity — must still be our local player. Reads here may throw on a
+            //    transient DMA failure; that propagates to ThrowIfRaidEnded as "unknown", not "over".
+            var mainPlayer = Memory.ReadPtr(_base + Offsets.ClientLocalGameWorld.MainPlayer, false);
+            if (!mainPlayer.IsValidVirtualAddress() || mainPlayer != _localPlayerAddr)
                 return false;
+
+            // 2) Player count sanity
+            var rgtPlayersAddr = Memory.ReadPtr(_base + Offsets.ClientLocalGameWorld.RegisteredPlayers, false);
+            var count = Memory.ReadValue<int>(rgtPlayersAddr + 0x18, false);
+            if (count <= 0)
+                return false;
+
+            // 3) Map transition detection — but not on every single call
+            if ((_mapCheckTick++ & 0x3F) == 0) // every 64 calls
+            {
+                var currentMapId = ReadMapID(_base);
+                if (!string.IsNullOrEmpty(currentMapId) &&
+                    !string.IsNullOrEmpty(MapID) &&
+                    !string.Equals(currentMapId, MapID, StringComparison.Ordinal))
+                {
+                    Log.WriteLine($"[LocalGameWorld] Map changed: '{MapID}' → '{currentMapId}'. Ending raid.");
+                    return false;
+                }
             }
+
+            return true;
         }
 
         /// <summary>

@@ -98,7 +98,21 @@ public sealed partial class Vmm : IDisposable
         };
         if (hVMM.ToInt64() == 0)
         {
-            throw new VmmException("VMM INIT FAILED.");
+            // On failure leechcore still populates the error-info struct (device not found,
+            // FPGA/FTDI link error, version mismatch, etc.). Surface its user text so the caller
+            // can show *why* init failed instead of an opaque generic message.
+            string detail = "";
+            if (vaLcCreateErrorInfo != 0)
+            {
+                try
+                {
+                    var ef = Marshal.PtrToStructure<Lci.LC_CONFIG_ERRORINFO>(pLcErrorInfo);
+                    if (ef.dwVersion == LeechCore.LC_CONFIG_ERRORINFO_VERSION && ef.cwszUserText > 0)
+                        detail = Marshal.PtrToStringUni(checked((IntPtr)(vaLcCreateErrorInfo + cbERROR_INFO)))?.Trim() ?? "";
+                }
+                catch { /* best-effort: fall back to the generic message */ }
+            }
+            throw new VmmException(detail.Length > 0 ? $"VMM INIT FAILED. {detail}" : "VMM INIT FAILED.");
         }
 
         if (vaLcCreateErrorInfo == 0)

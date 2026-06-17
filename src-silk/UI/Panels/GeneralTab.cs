@@ -75,25 +75,23 @@ namespace eft_dma_radar.Silk.UI.Panels
             ImGui.SeparatorText("Hideout");
 
             bool hideoutEnabled = Config.HideoutEnabled;
-            if (ImGui.Checkbox("Enable Hideout", ref hideoutEnabled))
+            if (UIControls.ToggleRow("Enable Hideout", ref hideoutEnabled,
+                "Read stash items and area upgrades when entering the hideout"))
             {
                 Config.HideoutEnabled = hideoutEnabled;
                 Config.MarkDirty();
             }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Read stash items and area upgrades when entering the hideout");
 
             if (Config.HideoutEnabled)
             {
                 ImGui.Indent(16);
                 bool autoRefresh = Config.HideoutAutoRefresh;
-                if (ImGui.Checkbox("Auto Refresh", ref autoRefresh))
+                if (UIControls.ToggleRow("Auto Refresh", ref autoRefresh,
+                    "Automatically refresh stash and area data on hideout entry"))
                 {
                     Config.HideoutAutoRefresh = autoRefresh;
                     Config.MarkDirty();
                 }
-                if (ImGui.IsItemHovered())
-                    ImGui.SetTooltip("Automatically refresh stash and area data on hideout entry");
                 ImGui.Unindent(16);
             }
 
@@ -101,13 +99,12 @@ namespace eft_dma_radar.Silk.UI.Panels
             ImGui.SeparatorText("Match Dump");
 
             bool matchDump = Config.EnableMatchDump;
-            if (ImGui.Checkbox("Enable Match Dump", ref matchDump))
+            if (UIControls.ToggleRow("Enable Match Dump", ref matchDump,
+                "Serialize all radar data (players, loot, corpses, exfils\u2026) to a JSON file in the dumps\\ folder.\nUse the button below to trigger a snapshot manually."))
             {
                 Config.EnableMatchDump = matchDump;
                 Config.MarkDirty();
             }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Serialize all radar data (players, loot, corpses, exfils\u2026) to a JSON file in the dumps\\ folder.\nUse the button below to trigger a snapshot manually.");
 
             if (Config.EnableMatchDump)
             {
@@ -157,14 +154,13 @@ namespace eft_dma_radar.Silk.UI.Panels
             ImGui.SeparatorText("Web Radar");
 
             bool webEnabled = Config.WebRadarEnabled;
-            if (ImGui.Checkbox("Enable Web Radar", ref webEnabled))
+            if (UIControls.ToggleRow("Enable Web Radar", ref webEnabled,
+                "Start/stop the web radar HTTP server.\nAccess from a browser on any device on your network."))
             {
                 Config.WebRadarEnabled = webEnabled;
                 Config.MarkDirty();
                 _ = ToggleWebRadarAsync(webEnabled);
             }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("Start/stop the web radar HTTP server.\nAccess from a browser on any device on your network.");
 
             if (Config.WebRadarEnabled)
             {
@@ -194,13 +190,12 @@ namespace eft_dma_radar.Silk.UI.Panels
                     ImGui.SetTooltip("Update interval for the web radar data");
 
                 bool upnp = Config.WebRadarUPnP;
-                if (ImGui.Checkbox("UPnP / NAT-PMP", ref upnp))
+                if (UIControls.ToggleRow("UPnP / NAT-PMP", ref upnp,
+                    "Automatically forward the port on your router via UPnP.\nEnables access from outside your network.\nTakes effect on next server start."))
                 {
                     Config.WebRadarUPnP = upnp;
                     Config.MarkDirty();
                 }
-                if (ImGui.IsItemHovered())
-                    ImGui.SetTooltip("Automatically forward the port on your router via UPnP.\nEnables access from outside your network.\nTakes effect on next server start.");
 
                 if (eft_dma_radar.Silk.Web.WebRadarServer.IsRunning)
                 {

@@ -30,6 +30,7 @@ namespace eft_dma_radar.Silk.Tarkov.Features
             RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<NightVision>).TypeHandle);
             RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<ThermalVision>).TypeHandle);
             RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<NoVisor>).TypeHandle);
+            RuntimeHelpers.RunClassConstructor(typeof(MemWriteFeature<SilentAim>).TypeHandle);
 
             Memory.GameStarted += (_, _) => OnGameStarted();
             Memory.GameStopped += (_, _) => OnGameStopped();

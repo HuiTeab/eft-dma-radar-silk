@@ -60,6 +60,21 @@ internal static class HotkeyManager
             "Zoom out on the radar map",
             static e => { if (e.IsDown) RadarWindow.Zoom = Math.Max(RadarWindow.Zoom - 5, 1); }),
 
+        // Combat
+        new("SilentAim", "Silent Aim (engage)", "Combat",
+            "Engage silent aim. Set Mode=Hold to aim only while held, or Toggle to flip on/off. " +
+            "When this is bound, silent aim only redirects while engaged; unbound = always-on.",
+            static e =>
+            {
+                var mode = SilkProgram.Config.Hotkeys.TryGetValue("SilentAim", out var hk)
+                    ? hk.Mode : HotkeyMode.Toggle;
+                if (mode == HotkeyMode.OnKey)
+                    eft_dma_radar.Silk.Tarkov.Features.MemoryWrites.SilentAim.Engaged = e.IsDown;
+                else if (e.IsDown)
+                    eft_dma_radar.Silk.Tarkov.Features.MemoryWrites.SilentAim.Engaged =
+                        !eft_dma_radar.Silk.Tarkov.Features.MemoryWrites.SilentAim.Engaged;
+            }),
+
         // Loot
         new("ToggleLoot", "Toggle Loot", "Loot",
             "Toggle loot overlay visibility",

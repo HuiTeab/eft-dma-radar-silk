@@ -38,6 +38,7 @@ namespace eft_dma_radar.Silk.DMA
         private static CancellationTokenSource _cts = new();
         private static volatile bool _shutdown;
         private static Thread? _workerThread;
+        private static SilkConfig? _config;
 
         private static MemoryState _state = MemoryState.NotStarted;
 
@@ -198,61 +199,15 @@ namespace eft_dma_radar.Silk.DMA
         /// </summary>
         public static void ModuleInit(SilkConfig config)
         {
-            Log.WriteLine("[Memory] Initializing DMA...");
+            // Device connection is deferred to the worker thread (see ConnectDevice) so the radar
+            // window can come up and show a "Waiting for DMA device" state — and keep retrying —
+            // instead of hard-crashing when the card is powered down / unplugged at launch.
+            // Power the card on and it connects automatically; no relaunch needed.
+            _config = config;
+            SetState(MemoryState.WaitingForDevice);
 
-            var vmmVer = FileVersionInfo.GetVersionInfo("vmm.dll").FileVersion;
-            var lcVer = FileVersionInfo.GetVersionInfo("leechcore.dll").FileVersion;
-
-            var args = new List<string>(["-norefresh", "-device", config.DeviceStr, "-waitinitialize"]);
-
-            try
-            {
-                if (config.MemMapEnabled && !File.Exists(MemMapFile))
-                {
-                    Log.WriteLine("[Memory] No MemMap, generating...");
-                    _vmm = new Vmm([.. args]);
-                    _vmm.GetMemoryMap(applyMap: true, outputFile: MemMapFile);
-                    _vmm.Dispose();
-                }
-
-                if (config.MemMapEnabled)
-                    args.AddRange(["-memmap", MemMapFile]);
-
-                _vmm = new Vmm([.. args]);
-
-                // Route VMM/LeechCore internal diagnostics (FPGA/TLP errors, failed device
-                // reads, refresh issues) into our own Log + notification path. By default VMM
-                // only emits Warning/Critical here — low-volume, high-signal — so this surfaces
-                // real DMA-link problems without flooding. (VMMDLL_LogCallback, MemProcFS v5.17+.)
-                unsafe { _vmm.LogCallback(&OnVmmLog); }
-
-                // Benchmark BEFORE registering auto-refresh so the PCIe bus is idle
-                // during measurement. RegisterAutoRefresh drives continuous TLP traffic
-                // that would starve concurrent LeechCore.Read calls.
-                RunThroughputBenchmark(_vmm);
-
-                _vmm.RegisterAutoRefresh(RefreshOption.MemoryPartial, TimeSpan.FromMilliseconds(300));
-                _vmm.RegisterAutoRefresh(RefreshOption.TlbPartial, TimeSpan.FromSeconds(2));
-
-                SetState(MemoryState.WaitingForProcess);
-
-                _workerThread = new Thread(MemoryWorker) { IsBackground = true, Name = "MemoryWorker" };
-                _workerThread.Start();
-
-                Log.WriteLine("[Memory] DMA initialized OK.");
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException(
-                    $"DMA Initialization Failed!\n" +
-                    $"Reason: {ex.Message}\n" +
-                    $"vmm: {vmmVer}  leechcore: {lcVer}\n\n" +
-                    "Troubleshooting:\n" +
-                    "1. Reboot both PCs.\n" +
-                    "2. Check all cable connections.\n" +
-                    "3. Changed hardware? Delete mmap.txt and the Symbols folder.\n" +
-                    "4. Verify all DMA setup steps are complete.", ex);
-            }
+            _workerThread = new Thread(MemoryWorker) { IsBackground = true, Name = "MemoryWorker" };
+            _workerThread.Start();
         }
 
         #endregion
@@ -342,6 +297,16 @@ namespace eft_dma_radar.Silk.DMA
         {
             Log.WriteLine("[Memory] Worker thread started.");
 
+            // Block here until the DMA device is reachable (retries indefinitely, drives the
+            // WaitingForDevice UI state). Only fails if shutdown is requested first.
+            if (!ConnectDevice())
+            {
+                Log.WriteLine("[Memory] Worker thread exiting (no device / shutdown).");
+                return;
+            }
+
+            SetState(MemoryState.WaitingForProcess);
+
             while (!_shutdown)
             {
                 try
@@ -371,6 +336,94 @@ namespace eft_dma_radar.Silk.DMA
             }
 
             Log.WriteLine("[Memory] Worker thread exiting.");
+        }
+
+        /// <summary>
+        /// Connects to the DMA device, retrying every ~3s until it succeeds or shutdown is
+        /// requested. Surfaces the underlying leechcore reason (device not found, FPGA/FTDI link
+        /// error, version mismatch, etc.) and drives the <see cref="MemoryState.WaitingForDevice"/>
+        /// UI state, so a powered-down card no longer crashes the app — power it on and it connects.
+        /// Generating the memory map, the throughput benchmark and auto-refresh registration all
+        /// happen here because they require a live device.
+        /// </summary>
+        /// <returns><see langword="true"/> once connected; <see langword="false"/> if shutdown first.</returns>
+        private static bool ConnectDevice()
+        {
+            var config = _config ?? throw new InvalidOperationException("ModuleInit was not called before ConnectDevice.");
+
+            var vmmVer = FileVersionInfo.GetVersionInfo("vmm.dll").FileVersion;
+            var lcVer = FileVersionInfo.GetVersionInfo("leechcore.dll").FileVersion;
+            Log.WriteLine($"[Memory] Initializing DMA... (vmm {vmmVer}, leechcore {lcVer})");
+
+            SetState(MemoryState.WaitingForDevice);
+            bool warned = false;
+
+            while (!_shutdown)
+            {
+                var args = new List<string>(["-norefresh", "-device", config.DeviceStr, "-waitinitialize"]);
+                try
+                {
+                    if (config.MemMapEnabled && !File.Exists(MemMapFile))
+                    {
+                        Log.WriteLine("[Memory] No MemMap, generating...");
+                        using var seed = new Vmm([.. args]);
+                        seed.GetMemoryMap(applyMap: true, outputFile: MemMapFile);
+                    }
+
+                    if (config.MemMapEnabled)
+                        args.AddRange(["-memmap", MemMapFile]);
+
+                    _vmm = new Vmm([.. args]);
+
+                    // Route VMM/LeechCore internal diagnostics (FPGA/TLP errors, failed device
+                    // reads, refresh issues) into our own Log + notification path. By default VMM
+                    // only emits Warning/Critical here — low-volume, high-signal — so this surfaces
+                    // real DMA-link problems without flooding. (VMMDLL_LogCallback, MemProcFS v5.17+.)
+                    unsafe { _vmm.LogCallback(&OnVmmLog); }
+
+                    // Benchmark BEFORE registering auto-refresh so the PCIe bus is idle
+                    // during measurement. RegisterAutoRefresh drives continuous TLP traffic
+                    // that would starve concurrent LeechCore.Read calls.
+                    RunThroughputBenchmark(_vmm);
+
+                    _vmm.RegisterAutoRefresh(RefreshOption.MemoryPartial, TimeSpan.FromMilliseconds(300));
+                    _vmm.RegisterAutoRefresh(RefreshOption.TlbPartial, TimeSpan.FromSeconds(2));
+
+                    Log.WriteLine("[Memory] DMA initialized OK.");
+                    if (warned)
+                        Notify("DMA device connected", NotificationLevel.Info);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    // Drop any partially-initialized handle before retrying.
+                    try { _vmm?.Dispose(); } catch { }
+                    _vmm = null;
+
+                    if (!warned)
+                    {
+                        Log.Write(AppLogLevel.Warning,
+                            $"[Memory] DMA initialization failed: {ex.Message}\n" +
+                            $"vmm: {vmmVer}  leechcore: {lcVer}\n" +
+                            "Troubleshooting: power on the DMA card, check cable connections and the -device " +
+                            "setting; if hardware changed, delete mmap.txt and the Symbols folder. Retrying every 3s…");
+                        Notify("Waiting for DMA device — is the card powered on?", NotificationLevel.Warning);
+                        warned = true;
+                    }
+                    else
+                    {
+                        Log.WriteLine($"[Memory] DMA still unavailable ({ex.Message}); retrying…");
+                    }
+
+                    SetState(MemoryState.WaitingForDevice);
+
+                    // ~3s back-off, but stay responsive to shutdown.
+                    for (int i = 0; i < 30 && !_shutdown; i++)
+                        Thread.Sleep(100);
+                }
+            }
+
+            return false;
         }
 
         #endregion
@@ -1115,6 +1168,7 @@ namespace eft_dma_radar.Silk.DMA
     public enum MemoryState
     {
         NotStarted,
+        WaitingForDevice,
         WaitingForProcess,
         Initializing,
         ProcessFound,

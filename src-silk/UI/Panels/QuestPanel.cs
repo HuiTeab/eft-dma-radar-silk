@@ -12,17 +12,18 @@ using ImGuiNET;
 namespace eft_dma_radar.Silk.UI.Panels
 {
     /// <summary>
-    /// Quest Info Panel — shows active quests grouped by trader,
+    /// Quest Info view — shows active quests grouped by trader,
     /// with a map filter combo, collapsible quest entries, objective details,
     /// required keys, required items, and filter toggles.
     /// Works in both lobby (via LobbyQuestReader) and in-raid.
+    ///
+    /// Embedded in <see cref="QuestHubPanel"/> (the "By Trader" tab); it no longer
+    /// owns its own window. The Kappa filter and selected-quest pin live in the hub
+    /// header because they are shared with the Map Planner view.
     /// </summary>
     internal static class QuestPanel
     {
         private static SilkConfig Config => SilkProgram.Config;
-
-        /// <summary>Whether the quest panel is open.</summary>
-        public static bool IsOpen { get; set; }
 
         // ── Filter state ─────────────────────────────────────────────────────
         private static bool _showKeys = true;
@@ -99,14 +100,9 @@ namespace eft_dma_radar.Silk.UI.Panels
         // ── Cached map tags per quest ID (rebuilt with grouping) ─────────────
         private static readonly Dictionary<string, string> _mapTagCache = new(StringComparer.OrdinalIgnoreCase);
 
-        public static void Draw()
+        /// <summary>Draws the "By Trader" view body inside the shared <see cref="QuestHubPanel"/> window.</summary>
+        public static void DrawEmbedded()
         {
-            bool isOpen = IsOpen;
-            using var scope = PanelWindow.Begin("\u2756 Quests", ref isOpen, new Vector2(500, 580));
-            IsOpen = isOpen;
-            if (!scope.Visible)
-                return;
-
             DrawFilters();
             ImGui.Separator();
 
@@ -170,45 +166,18 @@ namespace eft_dma_radar.Silk.UI.Panels
 
         private static void DrawFilters()
         {
-            // Row 1: toggle filters
+            // Row 1: toggle filters (Kappa + selected-quest pin live in the hub header)
             ImGui.Checkbox("Keys", ref _showKeys);
             ImGui.SameLine();
             ImGui.Checkbox("Items", ref _showRequiredItems);
             ImGui.SameLine();
             ImGui.Checkbox("Hide Done", ref _hideCompleted);
-
-            var kappaFilter = Config.QuestKappaFilter;
-            if (ImGui.Checkbox("Kappa Only", ref kappaFilter))
-                Config.QuestKappaFilter = kappaFilter;
             ImGui.SameLine();
             var showOptional = Config.QuestShowOptional;
             if (ImGui.Checkbox("Show Optional", ref showOptional))
                 Config.QuestShowOptional = showOptional;
 
-            // Row 2: selected-quest controls
-            var selectedOnly = Config.QuestSelectedOnly;
-            if (ImGui.Checkbox("Selected Only", ref selectedOnly))
-            {
-                Config.QuestSelectedOnly = selectedOnly;
-                Config.MarkDirty();
-            }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip("When enabled, only the selected quest's items and zones are drawn on the radar.\nRight-click a quest to select it.");
-
-            if (!string.IsNullOrEmpty(Config.QuestSelectedId))
-            {
-                ImGui.SameLine();
-                var selName = GetQuestNameById(Config.QuestSelectedId);
-                ImGui.TextColored(ColKappa, $"\u2605 {selName}");
-                ImGui.SameLine();
-                if (ImGui.SmallButton("Clear"))
-                {
-                    Config.QuestSelectedId = "";
-                    Config.MarkDirty();
-                }
-            }
-
-            // Row 3: map filter combo
+            // Row 2: map filter combo
             EnsureMapFilterOptions();
             if (_mapFilterOptions is not null)
             {
@@ -216,7 +185,7 @@ namespace eft_dma_radar.Silk.UI.Panels
                 ImGui.Combo("Map", ref _selectedMapIndex, _mapFilterOptions, _mapFilterOptions.Length);
             }
 
-            // Row 4: hidden quests management
+            // Row 3: hidden quests management
             var hiddenCount = Config.QuestBlacklist?.Count ?? 0;
             if (hiddenCount > 0)
             {

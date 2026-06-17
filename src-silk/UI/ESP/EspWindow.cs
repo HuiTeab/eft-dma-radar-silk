@@ -51,6 +51,15 @@ namespace eft_dma_radar.Silk.UI.ESP
         // Sanity ceiling for distance (meters) — rejects garbage world positions
         private const float MaxSaneDistance = 2000f;
 
+        // Silent-aim target highlight — bright ring drawn at the locked target's head.
+        private static readonly SKPaint _aimLockPaint = new()
+        {
+            Color = new SKColor(255, 40, 40, 235),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 2f,
+            IsAntialias = true,
+        };
+
         #endregion
 
         #region Properties
@@ -525,6 +534,10 @@ namespace eft_dma_radar.Silk.UI.ESP
 
             if (drawBones)
                 DrawBones(canvas, player);
+
+            // Silent-aim target — bright ring at the head so the aimed-at player is obvious.
+            if (player.IsAimbotLocked)
+                canvas.DrawCircle(centerX, topY, MathF.Max(6f, boxHeight * 0.10f), _aimLockPaint);
 
             // ---- Labels ----
             // Boss guards matched by a named custom identifier show that name (e.g. "Kaban guard").

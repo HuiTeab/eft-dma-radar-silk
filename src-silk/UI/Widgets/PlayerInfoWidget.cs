@@ -97,6 +97,7 @@ namespace eft_dma_radar.Silk.UI.Widgets
                 ImGui.TableSetupScrollFreeze(0, 1);
                 ImGui.TableHeadersRow();
 
+                int rowIndex = 0;
                 foreach (var player in _hostilePlayers)
                 {
                     ImGui.TableNextRow();
@@ -106,9 +107,21 @@ namespace eft_dma_radar.Silk.UI.Widgets
                     ImGui.TableNextColumn();
                     ImGui.TextColored(color, $"{GetTypePrefix(player.Type)}{player.Name}");
 
-                    // Gear tooltip on name hover
-                    if (ImGui.IsItemHovered())
+                    bool nameHovered = ImGui.IsItemHovered();
+                    string ctxId = $"##pctx{rowIndex++}";
+
+                    // Gear tooltip on hover — suppressed while the right-click menu is open.
+                    if (nameHovered && !ImGui.IsPopupOpen(ctxId))
                         DrawNameTooltip(player, localPos);
+
+                    // Right-click the name → quick actions (watchlist / profile).
+                    if (nameHovered && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+                        ImGui.OpenPopup(ctxId);
+                    if (ImGui.BeginPopup(ctxId))
+                    {
+                        DrawPlayerContextMenu(player);
+                        ImGui.EndPopup();
+                    }
 
                     // Level (from corpse dogtag cache)
                     ImGui.TableNextColumn();
@@ -376,6 +389,54 @@ namespace eft_dma_radar.Silk.UI.Widgets
             }
 
             return null;
+        }
+
+        /// <summary>Right-click context actions for a player row (watchlist + profile).</summary>
+        private static void DrawPlayerContextMenu(Player player)
+        {
+            ImGui.TextDisabled(string.IsNullOrEmpty(player.Name) ? "(unknown)" : player.Name);
+            ImGui.Separator();
+
+            var wl = Memory.PlayerWatchlist;
+            bool hasAcct = !string.IsNullOrEmpty(player.AccountId);
+            bool already = hasAcct && wl?.Lookup(player.AccountId) is not null;
+
+            if (already)
+            {
+                ImGui.TextColored(ColorDim, "Already on watchlist");
+            }
+            else
+            {
+                ImGui.BeginDisabled(!hasAcct);
+                if (ImGui.MenuItem("Add to Watchlist"))
+                {
+                    wl?.Add(new PlayerWatchlistEntry
+                    {
+                        AccountId = player.AccountId!,
+                        Name = string.IsNullOrEmpty(player.Name) ? "Unknown" : player.Name,
+                    });
+                    eft_dma_radar.Silk.UI.Shell.ToastManager.Info($"Added {player.Name} to watchlist");
+                }
+                ImGui.EndDisabled();
+            }
+
+            ImGui.BeginDisabled(!hasAcct);
+            if (ImGui.MenuItem("Open tarkov.dev profile"))
+                OpenPlayerProfile(player.AccountId!);
+            ImGui.EndDisabled();
+        }
+
+        private static void OpenPlayerProfile(string accountId)
+        {
+            try
+            {
+                var url = $"https://tarkov.dev/players/regular/{accountId}";
+                Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                Log.WriteLine($"[PlayerInfoWidget] Error opening profile: {ex.Message}");
+            }
         }
     }
 }

@@ -92,6 +92,15 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player
             IsAntialias = true,
         };
 
+        // Silent-aim target highlight — bright ring drawn around the locked target's marker.
+        private static readonly SKPaint _aimbotLockRing = new()
+        {
+            Color = new SKColor(255, 40, 40, 235),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 2f,
+            IsAntialias = true,
+        };
+
         /// <summary>
         /// Draws this player on the radar canvas.
         /// </summary>
@@ -120,6 +129,10 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld.Player
             }
 
             DrawMarker(canvas, pos, fillPaint, chevronPaint, sin, cos);
+
+            // Silent-aim target — highlight ring so it's obvious who's being aimed at.
+            if (IsAimbotLocked)
+                canvas.DrawCircle(pos, DotRadius + 4f, _aimbotLockRing);
 
             // Aimline — draw after marker so it extends outward
             if (SilkProgram.Config.ShowAimlines && !IsLocalPlayer)

@@ -709,6 +709,69 @@ namespace eft_dma_radar.Silk.Tarkov.GameWorld
                 }
                 Log.WriteLine($"[MatchDumper] Players done ({(DateTime.UtcNow - dumpStart).TotalSeconds:F1}s)");
 
+                // ── AI Brains (BotOwner graph — SPT only) ─────────────────────────
+                // Walks Player.AIData (Player+0x948) → BotOwner → BotsGroup /
+                // BotMemoryClass / EnemiesController → EnemyInfo for one representative
+                // bot per AI type. These objects only exist client-side in SPT (offline
+                // AI). In LIVE EFT the AI runs server-side, so the roots are null and the
+                // graph dumper notes that. This is the section to read for a friendly /
+                // passive-AI SPT mod: it surfaces the per-enemy hostility, vision and
+                // shooting state (and which class/offset each lives at).
+                if (!game.InRaid) { sw.WriteLine("// Raid ended — stopping IL2CPP dump."); return; }
+                sw.WriteLine("═══════════════════════════════════════");
+                sw.WriteLine("SECTION: AI Brains (BotOwner / SPT) — friendly-AI mod research");
+                sw.WriteLine("═══════════════════════════════════════");
+                sw.WriteLine("// Root = Player.AIData @ Player+0x948, then class/array/List references are");
+                sw.WriteLine("// followed (depth 4) to reveal BotOwner → BotsGroup / EnemiesController / EnemyInfo.");
+                sw.WriteLine("// Null roots are EXPECTED in live EFT (server-side AI); populated in SPT (local AI).");
+                try
+                {
+                    var aiVisited = new HashSet<ulong>();
+                    var seenAiTypes = new HashSet<PlayerType>();
+                    int aiDumped = 0;
+                    foreach (var de in dumpEntries)
+                    {
+                        var p = de.Player;
+                        if (p.Type is not (PlayerType.AIScav or PlayerType.AIRaider or PlayerType.AIBoss))
+                            continue;
+                        if (!seenAiTypes.Add(p.Type))
+                            continue; // one representative per AI type keeps the file manageable
+                        if (!game.InRaid) { sw.WriteLine("// Raid ended mid-AI-dump — stopping."); break; }
+
+                        // Resolve the EFT.Player object. Local SPT bots register the Player
+                        // itself as the base; network-observed AI (live EFT) only exposes an
+                        // ObservedPlayerView, so reach for ObservedPlayerController.Player.
+                        ulong playerObj = de.PlayerBase;
+                        if (de.IsObserved)
+                        {
+                            playerObj = 0;
+                            if (Memory.TryReadPtr(de.PlayerBase + Offsets.ObservedPlayerView.ObservedPlayerController, out var opc)
+                                && opc.IsValidVirtualAddress())
+                                Memory.TryReadPtr(opc + Offsets.ObservedPlayerController.Player, out playerObj);
+                        }
+
+                        sw.WriteLine();
+                        sw.WriteLine($"//── AI '{p.Name}' [{p.Type}]  Player @ 0x{playerObj:X}  (observed={de.IsObserved}) ──");
+                        if (!playerObj.IsValidVirtualAddress())
+                        {
+                            sw.WriteLine("//   No client-side Player object — AI brain is server-side (live EFT).");
+                            continue;
+                        }
+
+                        Memory.TryReadPtr(playerObj + Offsets.Player.AIData, out var aiData);
+                        Il2CppDumper.DumpObjectGraphToWriter(aiData, sw,
+                            $"AIData[{p.Name}]", maxDepth: 4, maxObjects: 300, visited: aiVisited);
+                        aiDumped++;
+                        sw.Flush();
+                    }
+                    if (aiDumped == 0)
+                        sw.WriteLine("// No AI players registered to dump.");
+                }
+                catch (Exception ex) { sw.WriteLine($"// AI Brains dump failed: {ex.Message}"); }
+                sw.WriteLine();
+                sw.Flush();
+                Log.WriteLine($"[MatchDumper] AI Brains done ({(DateTime.UtcNow - dumpStart).TotalSeconds:F1}s)");
+
                 // ── Corpses ──────────────────────────────────────────────────────
                 if (!game.InRaid) { sw.WriteLine("// Raid ended — stopping IL2CPP dump."); return; }
                 sw.WriteLine("═══════════════════════════════════════");

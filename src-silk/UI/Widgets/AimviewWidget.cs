@@ -22,6 +22,7 @@ namespace eft_dma_radar.Silk.UI.Widgets
         private static bool _colorsReady;
         private static uint _colorCrosshair, _colorBg, _colorDotOutline, _colorShadow, _colorBorder;
         private static uint _colorLoot, _colorLootImportant, _colorLootWishlist, _colorCorpse, _colorContainer;
+        private static uint _colorAimLock;
 
         /// <summary>Whether the aimview widget is open.</summary>
         public static bool IsOpenField;
@@ -58,6 +59,7 @@ namespace eft_dma_radar.Silk.UI.Widgets
             _colorLootWishlist  = ImGui.GetColorU32(UITheme.OverlayLootWishlist);
             _colorCorpse        = ImGui.GetColorU32(UITheme.OverlayCorpse);
             _colorContainer     = ImGui.GetColorU32(UITheme.OverlayContainer);
+            _colorAimLock       = ImGui.GetColorU32(new Vector4(1f, 0.16f, 0.16f, 0.92f));
             _colorsReady = true;
         }
 
@@ -268,6 +270,10 @@ namespace eft_dma_radar.Silk.UI.Widgets
                     {
                         labelOffset = 4f;
                     }
+
+                    // Silent-aim target — bright ring so the aimed-at player stands out.
+                    if (player.IsAimbotLocked)
+                        drawList.AddCircle(new Vector2(screenX, screenY), drewSkeleton ? 11f : 9f, _colorAimLock, 0, 2f);
 
                     if (showLabels)
                     {

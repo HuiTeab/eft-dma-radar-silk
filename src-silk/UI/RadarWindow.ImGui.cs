@@ -89,7 +89,7 @@ namespace eft_dma_radar.Silk.UI
             if (ImGui.IsKeyPressed(ImGuiKey.S, false)) SettingsPanel.IsOpen = !SettingsPanel.IsOpen;
             else if (ImGui.IsKeyPressed(ImGuiKey.L, false)) LootFiltersPanel.IsOpen = !LootFiltersPanel.IsOpen;
             else if (ImGui.IsKeyPressed(ImGuiKey.H, false)) HideoutPanel.IsOpen = !HideoutPanel.IsOpen;
-            else if (ImGui.IsKeyPressed(ImGuiKey.Q, false)) QuestPanel.IsOpen = !QuestPanel.IsOpen;
+            else if (ImGui.IsKeyPressed(ImGuiKey.Q, false)) QuestHubPanel.IsOpen = !QuestHubPanel.IsOpen;
             else if (ImGui.IsKeyPressed(ImGuiKey.P, false)) PlayerInfoWidget.IsOpen = !PlayerInfoWidget.IsOpen;
             else if (ImGui.IsKeyPressed(ImGuiKey.T, false)) LootWidget.IsOpen = !LootWidget.IsOpen;
             else if (ImGui.IsKeyPressed(ImGuiKey.A, false)) AimviewWidget.IsOpen = !AimviewWidget.IsOpen;
@@ -234,8 +234,8 @@ namespace eft_dma_radar.Silk.UI
                 HotkeyManagerPanel.IsOpen = !HotkeyManagerPanel.IsOpen;
             if (ImGui.MenuItem("⌂ Hideout", "H", HideoutPanel.IsOpen))
                 HideoutPanel.IsOpen = !HideoutPanel.IsOpen;
-            if (ImGui.MenuItem("❁ Quest Planner", null, QuestPlannerPanel.IsOpen))
-                QuestPlannerPanel.IsOpen = !QuestPlannerPanel.IsOpen;
+            if (ImGui.MenuItem("❁ Quest Planner", null, QuestHubPanel.IsOpen && QuestHubPanel.ActiveTab == QuestHubPanel.Tab.Planner))
+                QuestHubPanel.Open(QuestHubPanel.Tab.Planner);
             if (ImGui.MenuItem("☰ Player History", null, PlayerHistoryPanel.IsOpen))
                 PlayerHistoryPanel.IsOpen = !PlayerHistoryPanel.IsOpen;
             if (ImGui.MenuItem("⌕ Watchlist", null, PlayerWatchlistPanel.IsOpen))
@@ -267,8 +267,7 @@ namespace eft_dma_radar.Silk.UI
             LootFiltersPanel.IsOpen = false;
             HotkeyManagerPanel.IsOpen = false;
             HideoutPanel.IsOpen = false;
-            QuestPanel.IsOpen = false;
-            QuestPlannerPanel.IsOpen = false;
+            QuestHubPanel.IsOpen = false;
             KillfeedPanel.IsOpen = false;
             PlayerHistoryPanel.IsOpen = false;
             PlayerWatchlistPanel.IsOpen = false;
@@ -762,14 +761,11 @@ namespace eft_dma_radar.Silk.UI
             // BEFORE those panels' Draw() is called so SetNextWindowPos/Size land.
             RightDock.BeginFrame();
 
-            if (QuestPanel.IsOpen)
+            if (QuestHubPanel.IsOpen)
             {
                 RightDock.PlaceNext();
-                QuestPanel.Draw();
+                QuestHubPanel.Draw();
             }
-
-            if (QuestPlannerPanel.IsOpen)
-                QuestPlannerPanel.Draw();
 
             if (KillfeedPanel.IsOpen)
                 KillfeedPanel.Draw();

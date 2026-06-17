@@ -613,6 +613,8 @@ namespace SDK
             public static uint Fireport = 0x150;
             public static uint TotalCenterOfImpact = 0xF0;
             public static uint WeaponLn = 0x100;
+            // RVA of get_WeaponDirection() in GameAssembly.dll — patched for silent aim (resolved live).
+            public static uint get_WeaponDirection_RVA = 0x10DDFD0;
         }
         public readonly partial struct ClientFirearmController
         {
@@ -765,6 +767,24 @@ namespace SDK
             public static uint FireMode = 0xA0;
             public static uint Chambers = 0xB0;
             public static uint _magSlotCache = 0xC8;
+        }
+        // Ballistics inputs read from the chambered round's template (silent-aim prediction).
+        // Fallbacks from il2cpp dump (EFT.InventoryLogic.AmmoTemplate); resolved live via schema.
+        public readonly partial struct AmmoTemplate
+        {
+            public static uint InitialSpeed = 0x1DC;
+            public static uint BallisticCoeficient = 0x1F0;
+            public static uint BulletMassGram = 0x294;
+            public static uint BulletDiameterMilimeters = 0x298;
+        }
+        // Muzzle-velocity % modifiers (weapon barrel + attachments) — refines silent-aim muzzle velocity.
+        public readonly partial struct WeaponTemplate
+        {
+            public static uint Velocity = 0x284;
+        }
+        public readonly partial struct ModTemplate
+        {
+            public static uint Velocity = 0x1B8;
         }
         public readonly partial struct LevelSettings
         {

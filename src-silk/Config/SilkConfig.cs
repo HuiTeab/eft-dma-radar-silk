@@ -149,6 +149,103 @@ namespace eft_dma_radar.Silk.Config
 
         [JsonPropertyName("noVisor")]
         public bool NoVisor { get; set; } = false;
+
+        // ── Silent aim (experimental bullet redirect) ────────────────────────────
+        [JsonPropertyName("silentAim")]
+        public bool SilentAim { get; set; } = false;
+
+        [JsonPropertyName("silentAimFov")]
+        public float SilentAimFov { get; set; } = 60f;
+
+        [JsonPropertyName("silentAimDistance")]
+        public float SilentAimDistance { get; set; } = 300f;
+
+        /// <summary>Lead + bullet-drop prediction for silent aim.</summary>
+        [JsonPropertyName("silentAimPredict")]
+        public bool SilentAimPredict { get; set; } = true;
+
+        /// <summary>Muzzle velocity (m/s) used for silent-aim travel-time (lead + drop). Tune per loadout.</summary>
+        [JsonPropertyName("silentAimMuzzleVelocity")]
+        public float SilentAimMuzzleVelocity { get; set; } = 850f;
+
+        /// <summary>
+        /// Extra lead time (milliseconds) added on top of bullet travel time when leading a moving
+        /// target. Compensates the read→fire→impact latency over DMA, which the bullet travel time
+        /// alone doesn't cover. Most noticeable on fast, close, strafing targets (high angular rate):
+        /// raise it if shots trail behind movers, lower it if they over-lead. Only affects moving
+        /// targets (stationary lead is always zero). Requires Prediction.
+        /// </summary>
+        [JsonPropertyName("silentAimLatencyMs")]
+        public float SilentAimLatencyMs { get; set; } = 20f;
+
+        /// <summary>
+        /// Applies only to the ShotDirection write method. Writes the shot direction in WORLD space
+        /// (true) vs the fireport's LOCAL space (false). LOCAL is correct: the field is read relative
+        /// to the fireport, whose local-forward is ≈-Y, so a valid local shot vector sits near
+        /// (0,-1,0) with the X/Z deviation carrying the aim correction — not "into the ground". World
+        /// is retained only as a fallback for builds where the local transform is unexpected.
+        /// </summary>
+        [JsonPropertyName("silentAimWorldSpace")]
+        public bool SilentAimWorldSpace { get; set; } = false;
+
+        /// <summary>
+        /// Pin the weapon's cone-of-impact (FirearmController.TotalCenterOfImpact) near zero (~0.0003)
+        /// while silent aim is active so the redirected round isn't scattered by weapon spread.
+        /// Without it, shots leave on the right vector but still drift off target.
+        /// </summary>
+        [JsonPropertyName("silentAimPerfectAccuracy")]
+        public bool SilentAimPerfectAccuracy { get; set; } = true;
+
+        /// <summary>Aim bone: 0=Head, 1=Chest (Spine3), 2=Pelvis, 3=Auto (nearest to crosshair), 4=Neck, 5=Legs (random thigh). Chest/Auto are far more forgiving than Head.</summary>
+        [JsonPropertyName("silentAimBone")]
+        public int SilentAimBone { get; set; } = 1;
+
+        /// <summary>Target selection: 0=Crosshair (nearest to aim), 1=Closest (nearest by distance).</summary>
+        [JsonPropertyName("silentAimTargetMode")]
+        public int SilentAimTargetMode { get; set; } = 0;
+
+        /// <summary>Only target enemies currently flagged visible by the visibility checker.</summary>
+        [JsonPropertyName("silentAimVisibleOnly")]
+        public bool SilentAimVisibleOnly { get; set; } = false;
+
+        /// <summary>Force the Head bone on AI/scav targets, keeping <see cref="SilentAimBone"/> for human players.</summary>
+        [JsonPropertyName("silentAimHeadshotAI")]
+        public bool SilentAimHeadshotAI { get; set; } = false;
+
+        /// <summary>
+        /// Stay locked to the current target until it dies or leaves FOV/distance, instead of
+        /// re-picking the "best" target every pass (stops mid-burst flicking between enemies).
+        /// </summary>
+        [JsonPropertyName("silentAimStickyTarget")]
+        public bool SilentAimStickyTarget { get; set; } = true;
+
+        /// <summary>Pick a new random aim bone on each shot (uses the weapon's shot counter) so the pattern looks less robotic. Overrides <see cref="SilentAimBone"/> while on.</summary>
+        [JsonPropertyName("silentAimRandomBone")]
+        public bool SilentAimRandomBone { get; set; } = false;
+
+        /// <summary>
+        /// Memory Aim — also write the local player's view rotation toward the target so the real
+        /// weapon points at it (rock-solid accuracy, but moves your screen — not "silent"). Can be
+        /// combined with the shot-direction redirect.
+        /// </summary>
+        [JsonPropertyName("silentAimMemoryAim")]
+        public bool SilentAimMemoryAim { get; set; } = false;
+
+        /// <summary>
+        /// Use the real per-ammo ballistics model (read the loaded round's muzzle velocity + G1 drag)
+        /// instead of the flat <see cref="SilentAimMuzzleVelocity"/>. Falls back to the flat value if
+        /// the ammo can't be read. Requires Prediction to be on.
+        /// </summary>
+        [JsonPropertyName("silentAimRealBallistics")]
+        public bool SilentAimRealBallistics { get; set; } = true;
+
+        /// <summary>
+        /// Redirect method: 0 = data-write to ProceduralWeaponAnimation._shotDirection (lighter, but
+        /// can be visual-only on some builds), 1 = code-patch FirearmController.get_WeaponDirection()
+        /// to return the world aim vector (the direction the game actually fires along). Default 1.
+        /// </summary>
+        [JsonPropertyName("silentAimMethod")]
+        public int SilentAimMethod { get; set; } = 1;
     }
 
     /// <summary>
@@ -410,10 +507,19 @@ namespace eft_dma_radar.Silk.Config
         /// <summary>Whether the Hideout panel is open.</summary>
         public bool ShowHideoutPanel { get; set; } = false;
 
-        /// <summary>Whether the Quest Info panel is open.</summary>
+        /// <summary>Whether the unified Quests panel (QuestHubPanel) is open.</summary>
         public bool ShowQuestPanel { get; set; } = false;
 
-        /// <summary>Whether the Quest Planner panel is open.</summary>
+        /// <summary>
+        /// Active tab in the unified Quests panel: 0 = By Trader, 1 = Map Planner.
+        /// See <see cref="eft_dma_radar.Silk.UI.Panels.QuestHubPanel.Tab"/>.
+        /// </summary>
+        public int QuestHubTab { get; set; } = 0;
+
+        /// <summary>
+        /// Legacy flag — the Quest Planner is now the "Map Planner" tab of the unified
+        /// Quests panel. Kept for back-compat config deserialization; no longer written.
+        /// </summary>
         public bool ShowQuestPlannerPanel { get; set; } = false;
 
         /// <summary>Whether the Player History panel is open.</summary>

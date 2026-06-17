@@ -61,8 +61,8 @@ namespace eft_dma_radar.Silk.UI.Shell
                 static () => AimviewWidget.IsOpen = !AimviewWidget.IsOpen),
 
             new Item("Q", "Quests",  "4",
-                static () => QuestPanel.IsOpen,
-                static () => QuestPanel.IsOpen = !QuestPanel.IsOpen),
+                static () => QuestHubPanel.IsOpen,
+                static () => QuestHubPanel.IsOpen = !QuestHubPanel.IsOpen),
 
             new Item("S", "Settings", "5",
                 static () => SettingsPanel.IsOpen,
@@ -93,10 +93,6 @@ namespace eft_dma_radar.Silk.UI.Shell
             new Item("⌂", "Hideout", "H",
                 static () => HideoutPanel.IsOpen,
                 static () => HideoutPanel.IsOpen = !HideoutPanel.IsOpen),
-
-            new Item("⁂", "Quest Planner", "",
-                static () => QuestPlannerPanel.IsOpen,
-                static () => QuestPlannerPanel.IsOpen = !QuestPlannerPanel.IsOpen),
 
             new Item("◯", "Player History", "",
                 static () => PlayerHistoryPanel.IsOpen,
