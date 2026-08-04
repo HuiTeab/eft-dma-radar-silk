@@ -428,7 +428,7 @@ namespace SDK
             public static uint InventoryController = 0x10;
             public static uint Player = 0x18;
             public static uint InfoContainer = 0xD0;
-            public static readonly uint[] MovementController = [0xD8, 0x98];
+            public static readonly uint[] MovementController = [0xF0, 0xB0];
             public static uint HealthController = 0xE8;
             public static uint ArmorInfoController = 0x110;
             public static uint HandsController = 0x120;
