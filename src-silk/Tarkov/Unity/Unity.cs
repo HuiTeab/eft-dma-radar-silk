@@ -17,13 +17,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity
     internal static class UnityOffsets
     {
         // ── GameObject ──────────────────────────────────────────────────────
-        public const uint GO_ObjectClass   = 0x70;  // GameObject → ObjectClass (m_Object)
-        public const uint GO_Components    = 0x48;  // GameObject → ComponentArray
-        public const uint GO_Name          = 0x78;  // GameObject → Name string pointer
+        public const uint GO_ObjectClass   = 0x80;  // GameObject → ObjectClass (m_Object)
+        public const uint GO_Components    = 0x58;  // GameObject → ComponentArray
+        public const uint GO_Name          = 0x88;  // GameObject → Name string pointer
 
         // ── Component ───────────────────────────────────────────────────────
-        public const uint Comp_ObjectClass = 0x38;  // Component → ObjectClass (InteractiveClass)
-        public const uint Comp_GameObject  = 0x48;  // Component → parent GameObject pointer
+        public const uint Comp_ObjectClass = 0x20;  // Component → ObjectClass (InteractiveClass)
+        public const uint Comp_GameObject  = 0x58;  // Component → parent GameObject pointer
         // ── ObjectClass name chain ──────────────────────────────────────────
         public static readonly uint[] ObjClass_ToNamePtr = [0x0, 0x10];
 
@@ -71,13 +71,13 @@ namespace eft_dma_radar.Silk.Tarkov.Unity
         public static class Camera
         {
             /// <summary>Camera + offset → 4×4 ViewProjection matrix (Matrix4x4).</summary>
-            public static uint ViewMatrix = 0x324;
+            public static uint ViewMatrix = 0x334;
 
             /// <summary>Camera + offset → Field of View (float, degrees).</summary>
-            public static uint FOV = 0x198;
+            public static uint FOV = 0x1A8;
 
             /// <summary>Camera + offset → Aspect Ratio (float).</summary>
-            public static uint AspectRatio = 0x508;
+            public static uint AspectRatio = 0x518;
 
             /// <summary>IsAdded offset after +0x10 dereference (DEC 2025).</summary>
             public const uint DerefIsAddedOffset = 0x35;
@@ -135,27 +135,27 @@ namespace eft_dma_radar.Silk.Tarkov.Unity
         public static class TransformAccess
         {
             /// <summary>TransformInternal + 0x70 → pointer to TransformHierarchy.</summary>
-            public const uint HierarchyOffset = 0x78;
+            public const uint HierarchyOffset = 0x70;
 
             /// <summary>TransformInternal + 0x78 → int index into the hierarchy arrays.</summary>
-            public const uint IndexOffset = 0x80;
+            public const uint IndexOffset = 0x78;
         }
 
         // ── TransformHierarchy native layout ─────────────────────────────────
         public static class TransformHierarchy
         {
             /// <summary>TransformHierarchy + 0x40 → pointer to indices array (int[]).</summary>
-            public const uint IndicesOffset = 0x8;
+            public const uint IndicesOffset = 0x40;
 
             /// <summary>TransformHierarchy + 0x68 → pointer to vertices array (TrsX[]).</summary>
-            public const uint VerticesOffset = 0x48;
+            public const uint VerticesOffset = 0x68;
         }
 
         // ── Unity Animator ────────────────────────────────────────────────────
         public static class UnityAnimator
         {
             /// <summary>Animator.m_Speed field offset.</summary>
-            public const uint Speed = 0x4A0;
+            public const uint Speed = 0x4B0;
         }
 
         // ── LevelSettings pointer chain ──────────────────────────────────────
